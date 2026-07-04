@@ -24,6 +24,26 @@ html, body {
 
 #stage { position: relative; width: 100vw; height: 100vh; height: 100dvh; }
 
+/* Yuklanish fon: 3D sahnadagi bilan bir xil qora-qizil radial gradient —
+   birinchi kadrdanoq "sahna" ko'rinadi, qora oyna yo'q. */
+#stage {
+  background:
+    radial-gradient(120% 85% at 50% 40%, #571724 0%, #310d15 35%, #150609 70%, #060304 100%);
+}
+/* Yuklanayotganda yengil "nafas" porlashi. */
+#stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(45% 34% at 50% 38%, rgba(214, 48, 62, 0.28), transparent 70%);
+  animation: stage-breathe 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes stage-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
 #avatar-canvas, #avatar3d-container {
   position: absolute;
   inset: 0;
@@ -31,6 +51,9 @@ html, body {
   height: 100%;
   display: block;
 }
+/* 2D zaxira yuz boshda ko'rinmaydi — faqat 3D kelmasa (oflayn) ochiladi. */
+#avatar-canvas { opacity: 0; transition: opacity 0.6s ease; }
+#avatar-canvas.visible { opacity: 1; }
 #avatar3d-container { pointer-events: none; }
 #avatar3d-container canvas { width: 100% !important; height: 100% !important; }
 

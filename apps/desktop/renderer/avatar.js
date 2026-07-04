@@ -201,5 +201,15 @@
     setState(next) { state = next; },
     setMood(next) { mood = next || "neutral"; },
     setMouthLevel(level) { mouthLevel = Math.max(0, Math.min(1, level)); },
+    // 3D aniq muvaffaqiyatsiz bo'lganda darhol ko'rsatish uchun.
+    showFallback() { canvas.classList.add("visible"); },
   };
+
+  // 2D yuz faqat zaxira: 6 soniyada 3D tayyor bo'lmasa (sekin tarmoq/oflayn)
+  // silliq paydo bo'ladi. 3D kelsa u allaqachon display:none qilib qo'yadi.
+  setTimeout(() => {
+    if (!(window.Avatar3D && window.Avatar3D.ready)) {
+      canvas.classList.add("visible");
+    }
+  }, 6000);
 })();

@@ -435,6 +435,8 @@ function boot() {
     })
     .catch((err) => {
       console.warn("[avatar3d] GLB yuklanmadi, 2D placeholder ishlaydi:", err?.message || err);
+      // Aniq muvaffaqiyatsizlik — zaxira yuzni darhol ko'rsatamiz.
+      if (window.Avatar && window.Avatar.showFallback) window.Avatar.showFallback();
     });
 }
 
@@ -923,9 +925,15 @@ function setupAvatar(gltf, ctx) {
     else renderer.render(scene, camera);
   }
 
+  // Silliq paydo bo'lish: qora oyna o'rniga gradient fondan fade-in.
+  renderer.domElement.style.opacity = "0";
+  renderer.domElement.style.transition = "opacity 0.8s ease";
   container.appendChild(renderer.domElement);
   resize();
   renderer.setAnimationLoop(loop);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { renderer.domElement.style.opacity = "1"; });
+  });
 
   // 2D placeholderni yashiramiz — 3D tayyor.
   if (fallbackCanvas) fallbackCanvas.style.display = "none";
