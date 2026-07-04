@@ -71,6 +71,17 @@
   let analyserRAF = null;
   let activeStream = null; // streaming TTS sessiyasi (WebAudio)
 
+  // iOS/Safari: audio faqat foydalanuvchi harakati ichida ochiladi.
+  // Har bir gesture'da (PTT, Enter, tugma) chaqiramiz — arzon va xavfsiz.
+  function unlockAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch {
+      // audio qurilmasi yo'q muhit
+    }
+  }
+
   function avatar() {
     return window.Avatar3D && window.Avatar3D.ready ? window.Avatar3D : window.Avatar;
   }
@@ -261,6 +272,7 @@
 
   async function startRecording(sourceKind) {
     if (recording || busy) return;
+    unlockAudio();
     stopPlayback("barge_in"); // TZ 6.1: barge-in.
     try {
       const stream = await ensureMic();
@@ -333,6 +345,7 @@
     const clean = text.trim();
     if (!clean || busy) return;
     busy = true;
+    unlockAudio();
     stopPlayback("new_turn");
     try {
       setUiState("thinking");
@@ -447,6 +460,7 @@
   }
 
   voiceToggle.addEventListener("click", () => {
+    unlockAudio();
     if (voiceMode) disableVoiceMode();
     else enableVoiceMode();
   });

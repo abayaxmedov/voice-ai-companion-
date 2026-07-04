@@ -164,9 +164,11 @@ class VoiceTurnPipeline:
                 first_chunk_ms = _elapsed_ms(start)
                 latency["tts_first_chunk_ms"] = first_chunk_ms
             if alignment:
-                for key in align:
-                    values = alignment.get(key) or []
-                    align[key].extend(values)
+                # MUHIM: ba'zi oqimlarda chunk alignmenti 0 dan boshlanadi
+                # (chunk-relativ). Kumulyativ qo'shishdan oldin shu holatni
+                # aniqlab, shu paytgacha kelgan audio davomiyligi bilan
+                # siljitamiz — aks holda lablar "orqaga sakraydi".
+                _merge_alignment(align, alignment, len(pcm_all) / 2.0 / sample_rate)
             if not chunk:
                 continue
             pcm_all.extend(chunk)
@@ -320,6 +322,32 @@ class VoiceTurnPipeline:
 
 def _elapsed_ms(start: float) -> int:
     return int((perf_counter() - start) * 1000)
+
+
+def _merge_alignment(
+    total: dict[str, list],
+    incoming: dict,
+    audio_seconds_before_chunk: float,
+) -> None:
+    chars = incoming.get("characters") or []
+    starts = incoming.get("character_start_times_seconds") or []
+    ends = incoming.get("character_end_times_seconds") or []
+    if not chars or len(chars) != len(starts) or len(chars) != len(ends):
+        return
+    offset = 0.0
+    if total["character_end_times_seconds"]:
+        last_end = float(total["character_end_times_seconds"][-1])
+        try:
+            first_start = float(starts[0])
+        except (TypeError, ValueError):
+            return
+        # Agar yangi vaqtlar orqaga qaytsa — chunk-relativ deb hisoblab,
+        # oldin kelgan audio davomiyligiga siljitamiz.
+        if first_start < last_end - 0.05:
+            offset = max(audio_seconds_before_chunk, last_end)
+    total["characters"].extend(chars)
+    total["character_start_times_seconds"].extend(float(s) + offset for s in starts)
+    total["character_end_times_seconds"].extend(float(e) + offset for e in ends)
 
 
 def _provider_sample_rate(provider: object) -> int:

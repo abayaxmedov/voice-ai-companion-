@@ -22,7 +22,7 @@ html, body {
   overflow: hidden;
 }
 
-#stage { position: relative; width: 100vw; height: 100vh; }
+#stage { position: relative; width: 100vw; height: 100vh; height: 100dvh; }
 
 #avatar-canvas, #avatar3d-container {
   position: absolute;
@@ -459,3 +459,52 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 }
 
 .hidden { display: none !important; }
+
+/* ---------- Telefon (portret) moslashuvi ---------- */
+@media (max-width: 640px) {
+  #hero { top: 58px; left: 16px; right: 76px; max-width: none; }
+  #greeting { font-size: 30px; }
+  #quote-text { font-size: 12.5px; }
+  #quote { display: none; } /* kichik ekranda avatar toza ko'rinsin */
+
+  #topbar { padding: 10px 12px; }
+  .pill { font-size: 11.5px; padding: 5px 11px; }
+
+  #sidebar { left: 8px; gap: 6px; }
+  .side-btn { width: 34px; height: 34px; }
+  #side-card {
+    left: 52px; right: 12px; width: auto;
+  }
+
+  #bottombar { padding: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  #bottombar-inner { gap: 8px; padding: 10px 12px; border-radius: 16px; }
+  #agent-switcher { font-size: 13px; gap: 6px; }
+  #agent-switcher .chev { display: none; }
+  #text-input { font-size: 16px; } /* iOS zoom bo'lmasligi uchun >=16px */
+  .round-btn { width: 44px; height: 44px; } /* barmoq uchun kattaroq */
+
+  .drawer { width: 100vw; border-left: none; }
+
+  #settings-overlay { align-items: stretch; justify-content: stretch; }
+  #settings-modal {
+    width: 100vw;
+    max-height: none;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+  #settings-tabs { overflow-x: auto; }
+  #settings-tabs .tab { padding: 9px 10px; font-size: 12.5px; white-space: nowrap; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .tab-pane input[type="text"],
+  .tab-pane input[type="password"],
+  .tab-pane select { font-size: 16px; } /* iOS zoom oldini olish */
+  #tool-status { width: calc(100vw - 24px); text-align: center; }
+}
+
+/* Juda past landshaft (telefon yonbosh) — hero ixcham */
+@media (max-height: 480px) {
+  #hero { top: 40px; }
+  #greeting { font-size: 24px; }
+  #quote { display: none; }
+}

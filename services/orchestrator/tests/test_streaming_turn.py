@@ -86,6 +86,50 @@ class StreamingTurnTests(unittest.TestCase):
             self.assertIn("tts_first_chunk_ms", result.latency_ms)
 
 
+class AlignmentMergeTests(unittest.TestCase):
+    def test_chunk_relative_alignment_gets_offset(self):
+        from companion_core.pipeline.voice_turn import _merge_alignment
+
+        total = {
+            "characters": ["s", "a"],
+            "character_start_times_seconds": [0.0, 0.1],
+            "character_end_times_seconds": [0.1, 0.2],
+        }
+        # Chunk-relativ (0 dan boshlangan) alignment; oldin 0.2s audio kelgan.
+        _merge_alignment(
+            total,
+            {
+                "characters": ["l", "o"],
+                "character_start_times_seconds": [0.0, 0.06],
+                "character_end_times_seconds": [0.06, 0.15],
+            },
+            audio_seconds_before_chunk=0.2,
+        )
+        starts = total["character_start_times_seconds"]
+        self.assertEqual(starts, [0.0, 0.1, 0.2, 0.26])
+        # Vaqtlar monoton — lablar orqaga sakramaydi.
+        self.assertEqual(starts, sorted(starts))
+
+    def test_absolute_alignment_not_shifted(self):
+        from companion_core.pipeline.voice_turn import _merge_alignment
+
+        total = {
+            "characters": ["s"],
+            "character_start_times_seconds": [0.0],
+            "character_end_times_seconds": [0.1],
+        }
+        _merge_alignment(
+            total,
+            {
+                "characters": ["a"],
+                "character_start_times_seconds": [0.1],
+                "character_end_times_seconds": [0.2],
+            },
+            audio_seconds_before_chunk=0.1,
+        )
+        self.assertEqual(total["character_start_times_seconds"], [0.0, 0.1])
+
+
 class VoiceSettingsTests(unittest.TestCase):
     def test_excited_is_less_stable_than_reassuring(self):
         excited = voice_settings_for("excited", "normal")

@@ -393,9 +393,12 @@ function boot() {
     composer.setSize(w, h);
     composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CONFIG.maxPixelRatio));
     camera.aspect = w / h;
+    // Telefon (portret): tor kadrda yelkalar kesilib qolmasin — fov kengroq.
+    camera.fov = camera.aspect < 0.8 ? 30 : CONFIG.camera.fov;
     camera.updateProjectionMatrix();
   }
   window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 250));
 
   /* --------- Uch nuqtali yoritish (Unclaw): iliq key, sovuq fill, qizil rim --------- */
   scene.add(new THREE.HemisphereLight(0x342028, 0x0b0507, 0.4));
@@ -639,7 +642,7 @@ function setupAvatar(gltf, ctx) {
     state.smoothMouth += (state.mouthLevel - state.smoothMouth) * Math.min(1, dt * 14);
     let energyTarget = 0;
 
-    if (speech.active && speech.frames.length) {
+    if (speech.active && speech.frames.length > 1) {
       speech.fade = Math.min(1, speech.fade + dt * 8);
       const tm = audioVisemeTime();
       if (tm !== null) {
@@ -717,6 +720,25 @@ function setupAvatar(gltf, ctx) {
           energyTarget = (VOWEL_VISEMES.has(cur.name) ? 1 : 0.45) * cur.weight * wCur;
         }
       }
+    } else if (speech.active && speech.curves) {
+      // Viseme timeline hali kelmagan (streaming boshi) — og'iz shakli
+      // to'g'ridan-to'g'ri audio egri chiziqlaridan: jag' energiyadan,
+      // yumaloqlik/kenglik spektrdan. Alignment kelishi bilan yuqoridagi
+      // aniq yo'lga o'tadi.
+      speech.fade = Math.min(1, speech.fade + dt * 8);
+      const cv = speech.curves;
+      const rawMs = speech.audio ? speech.audio.currentTime * 1000 : 0;
+      const ce = sampleCurve(cv.energy, cv.fps, rawMs);
+      const cj = sampleCurve(cv.jaw, cv.fps, rawMs);
+      const cc = sampleCurve(cv.close, cv.fps, rawMs);
+      const cs = sampleCurve(cv.spread, cv.fps, rawMs);
+      const cr = sampleCurve(cv.round, cv.fps, rawMs);
+      const f = speech.fade * (1 - cc * 0.85);
+      addShape(VISEME_SHAPES.aa, cj * 0.8 * f);
+      addShape(VISEME_SHAPES.U, cr * 0.55 * f);
+      addShape(VISEME_SHAPES.I, cs * 0.45 * f);
+      if (pose.mouthClose !== undefined) pose.mouthClose += cc * 0.55 * speech.fade;
+      energyTarget = ce;
     } else if (speaking) {
       // Fallback: faqat amplituda (mock TTS yoki visemesiz javob).
       const m = state.smoothMouth;
