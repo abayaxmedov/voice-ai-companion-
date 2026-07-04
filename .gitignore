@@ -40,3 +40,6 @@ unreal/**/Saved/
 .epic-backups/
 nohup.out
 
+
+# IDE
+.idea/
