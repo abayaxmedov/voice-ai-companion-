@@ -21,9 +21,16 @@ if grep -q "^COMPANION_AUDIO_CACHE_DIR=/private/tmp" .env; then
 fi
 
 # Tashqi manzil: audio URL'lari brauzerga shu bazadan qaytadi.
-IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+# Public IP'ni aniqlaymiz (EC2'da hostname -I ichki IP beradi).
+PUB_IP=$(curl -s --max-time 3 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]')
+IP=${PUB_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}
 IP=${IP:-127.0.0.1}
-sed -i "s|^COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL=.*|COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL=http://${IP}:8765|" .env
+# Faqat standart (127.0.0.1) qiymatni almashtiramiz — qo'lda kiritilgan
+# COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL hech qachon qayta yozilmaydi.
+if grep -qE "^COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL=http://(127\.0\.0\.1|localhost)" .env; then
+  sed -i "s|^COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL=.*|COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL=http://${IP}:8765|" .env
+fi
+BASE_URL=$(grep "^COMPANION_ORCHESTRATOR_PUBLIC_BASE_URL=" .env | cut -d= -f2-)
 
 # API token (ochiq portda majburiy himoya): yo'q bo'lsa yaratamiz.
 if ! grep -q "^COMPANION_API_TOKEN=" .env; then
@@ -43,7 +50,7 @@ if curl -sf "http://127.0.0.1:8765/health" >/dev/null; then
   echo ""
   echo "================================================================"
   echo "  Ishga tushdi ✅"
-  echo "  UI:      http://${IP}:8765/?token=${TOKEN}"
+  echo "  UI:      ${BASE_URL}/?token=${TOKEN}"
   echo "  Log:     tail -f orchestrator.log"
   echo "  To'xtatish: pkill -f run_orchestrator.py"
   echo "================================================================"
