@@ -1,0 +1,42 @@
+# Runtime/cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Local data and generated artifacts
+models/cache/*
+!models/cache/.gitkeep
+rendered_tz*/
+*.log
+*.sqlite3
+*.db
+
+# Node / desktop
+node_modules/
+dist/
+build/
+.vite/
+
+# macOS
+.DS_Store
+
+# Unreal generated files
+unreal/**/Binaries/
+unreal/**/DerivedDataCache/
+unreal/**/Intermediate/
+unreal/**/Saved/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Shaxsiy profil va lokal artefaktlar
+.companion_profile.json
+.epic-backups/
+nohup.out
+

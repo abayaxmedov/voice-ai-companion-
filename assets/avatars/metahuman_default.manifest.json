@@ -1,0 +1,14 @@
+{
+  "avatar_id": "metahuman_default",
+  "display_name": "Default MetaHuman Companion",
+  "runtime": "unreal",
+  "rig_type": "metahuman",
+  "license_status": "placeholder_manifest_no_asset_committed",
+  "capabilities": {
+    "visemes": true,
+    "emotions": true,
+    "body_idle": true,
+    "avatar_switching": true
+  }
+}
+

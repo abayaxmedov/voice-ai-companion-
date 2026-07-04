@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <title>Avatar3D preview — Unclaw solishtiruv harness</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #050203; overflow: hidden;
+      font: 13px/1.4 -apple-system, "SF Pro Text", sans-serif; }
+    #stage { position: relative; width: 100vw; height: 100vh; }
+    #avatar-canvas, #avatar3d-container { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #avatar3d-container canvas { width: 100% !important; height: 100% !important; }
+    #hud { position: absolute; top: 10px; left: 10px; z-index: 5; color: #e7d9d9;
+      background: rgba(10, 4, 6, 0.55); border: 1px solid rgba(229, 72, 77, 0.25);
+      border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(6px); max-width: 300px; }
+    #hud b { color: #ff6b73; }
+    .row { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 4px; }
+    button { background: #1c0d10; color: #e7d9d9; border: 1px solid rgba(229,72,77,.35);
+      border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+    button:hover { background: #2a1216; }
+    #fps { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main id="stage">
+    <canvas id="avatar-canvas"></canvas>
+    <div id="avatar3d-container"></div>
+    <div id="hud">
+      <div><b>Avatar3D preview</b> — <span id="fps">…</span> · <span id="morphs"></span></div>
+      <div class="row" id="states"></div>
+      <div class="row" id="moods"></div>
+      <div class="row">
+        <button id="speak-demo">▶ Gapirish demosi (viseme timeline)</button>
+      </div>
+    </div>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="avatar3d.js"></script>
+  <script>
+    (function () {
+      const av = () => window.Avatar3D;
+
+      // Backend visemes.py'ning JS mini-porti — faqat demo uchun.
+      const DIGRAPHS = { sh: ["CH", .75, 90], ch: ["CH", .78, 90], ng: ["kk", .5, 70] };
+      const APOS = "'’‘ʻʼ`´";
+      const APO_DI = { o: ["O", .9, 120], g: ["kk", .55, 70] };
+      const LETTERS = {
+        a: ["aa", .95, 120], o: ["O", .88, 120], e: ["E", .8, 115], i: ["I", .8, 105],
+        u: ["U", .85, 110], b: ["PP", .95, 75], p: ["PP", .95, 75], m: ["PP", .9, 80],
+        f: ["FF", .7, 70], v: ["FF", .65, 65], s: ["SS", .65, 85], z: ["SS", .6, 75],
+        j: ["CH", .75, 85], x: ["kk", .5, 75], h: ["kk", .4, 60], k: ["kk", .55, 70],
+        g: ["kk", .55, 65], q: ["kk", .55, 75], t: ["DD", .55, 60], d: ["DD", .55, 60],
+        n: ["nn", .5, 60], l: ["nn", .5, 65], r: ["RR", .55, 65], y: ["I", .45, 55],
+      };
+      function textToVisemes(text) {
+        const s = text.toLowerCase();
+        const frames = [];
+        let tMs = 0, i = 0;
+        const push = (name, weight, dur) => { frames.push({ time_ms: Math.round(tMs), name, weight }); tMs += dur; };
+        while (i < s.length) {
+          const pair = s.slice(i, i + 2);
+          if (DIGRAPHS[pair]) { push(...DIGRAPHS[pair]); i += 2; continue; }
+          const ch = s[i];
+          if (APO_DI[ch] && APOS.includes(s[i + 1] || "")) { push(...APO_DI[ch]); i += 2; continue; }
+          if (LETTERS[ch]) push(...LETTERS[ch]);
+          else if (ch === " ") push("sil", 0, 80);
+          else if (".!?…".includes(ch)) push("sil", 0, 240);
+          else if (",;:—".includes(ch)) push("sil", 0, 150);
+          i += 1;
+        }
+        push("sil", 0, 10);
+        return frames;
+      }
+
+      // Timeline uzunligiga mos jim WAV (real audio clock uchun).
+      function silentWav(ms) {
+        const rate = 8000, n = Math.max(1, Math.round(rate * ms / 1000));
+        const buf = new ArrayBuffer(44 + n * 2);
+        const v = new DataView(buf);
+        const w = (o, s) => { for (let k = 0; k < s.length; k++) v.setUint8(o + k, s.charCodeAt(k)); };
+        w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt ");
+        v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+        v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data");
+        v.setUint32(40, n * 2, true);
+        return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+      }
+
+      const DEMO_TEXT = "Salom! Men sizning ovozli hamrohingizman. Bugun sizga qanday yordam bera olaman?";
+      let mouthTimer = null;
+
+      document.getElementById("speak-demo").addEventListener("click", () => {
+        const a = av();
+        if (!a || !a.ready) return alert("3D avatar hali yuklanmadi.");
+        const frames = textToVisemes(DEMO_TEXT);
+        const audio = new Audio(silentWav(frames[frames.length - 1].time_ms + 100));
+        a.setState("speaking");
+        a.speak(frames, audio);
+        clearInterval(mouthTimer);
+        mouthTimer = setInterval(() => a.setMouthLevel(0.45 + Math.random() * 0.4), 50);
+        audio.onended = () => {
+          clearInterval(mouthTimer);
+          a.stopSpeaking(); a.setMouthLevel(0); a.setState("idle");
+        };
+        audio.play();
+      });
+
+      const statesEl = document.getElementById("states");
+      for (const st of ["idle", "listening", "thinking", "speaking", "error"]) {
+        const b = document.createElement("button");
+        b.textContent = st;
+        b.onclick = () => av() && av().setState(st);
+        statesEl.appendChild(b);
+      }
+      const moodsEl = document.getElementById("moods");
+      for (const mood of ["neutral", "happy", "excited", "thoughtful", "concerned", "apologetic", "reassuring"]) {
+        const b = document.createElement("button");
+        b.textContent = mood;
+        b.onclick = () => av() && av().setMood(mood);
+        moodsEl.appendChild(b);
+      }
+
+      setInterval(() => {
+        const a = av();
+        document.getElementById("fps").textContent = a && a.getFps ? a.getFps() + " fps" : "yuklanmoqda…";
+        document.getElementById("morphs").textContent = a && a.debug ? a.debug.morphCount + " morph" : "";
+      }, 500);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice Companion Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="stage" aria-label="Avatar sahnasi">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">macOS local companion</p>
+            <h1>Voice Companion</h1>
+          </div>
+          <div class="runtime-pill" id="runtime-pill">
+            <span class="dot"></span>
+            <span id="runtime-text">Ulanmoqda</span>
+          </div>
+        </header>
+
+        <div class="avatar-scene">
+          <iframe
+            id="pixel-stream"
+            title="MetaHuman Pixel Streaming"
+            hidden
+            allow="autoplay; fullscreen; microphone; camera"
+          ></iframe>
+          <canvas id="avatar-canvas" width="960" height="960" aria-label="Custom avatar preview"></canvas>
+          <div class="speaking-ring" id="speaking-ring"></div>
+          <div class="stream-placeholder" id="stream-placeholder">
+            <strong>MetaHuman stream kutilmoqda</strong>
+            <span>Unreal Pixel Streaming tayyor bo'lsa shu joyda real 3D avatar chiqadi.</span>
+          </div>
+        </div>
+
+        <div class="voice-bar">
+          <button class="icon-button" id="mic-button" type="button" title="Voice turn yuborish">
+            <span class="mic-icon"></span>
+          </button>
+          <div class="turn-copy">
+            <p id="spoken-response">Backend javobi shu yerda ko'rinadi.</p>
+            <small id="turn-meta">Mock providerlar bilan local demo</small>
+            <audio id="assistant-audio" class="assistant-audio" controls hidden></audio>
+          </div>
+          <button class="icon-button muted" id="refresh-button" type="button" title="Statusni yangilash">
+            <span class="refresh-icon"></span>
+          </button>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="Runtime panel">
+        <section class="panel-section">
+          <h2>Voice turn</h2>
+          <textarea id="utterance" rows="5">Salom, bugun Toshkentda ob-havo qanday?</textarea>
+          <button class="primary-action" id="send-turn" type="button">Yuborish</button>
+        </section>
+
+        <section class="panel-section">
+          <h2>Providers</h2>
+          <div id="providers" class="provider-list"></div>
+        </section>
+
+        <section class="panel-section">
+          <h2>Avatar job</h2>
+          <dl class="kv">
+            <div><dt>Avatar</dt><dd id="avatar-id">-</dd></div>
+            <div><dt>Mood</dt><dd id="avatar-mood">-</dd></div>
+            <div><dt>Audio</dt><dd id="avatar-audio">-</dd></div>
+            <div><dt>Visemes</dt><dd id="avatar-visemes">-</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel-section">
+          <h2>MetaHuman bridge</h2>
+          <dl class="kv">
+            <div><dt>Status</dt><dd id="bridge-status">-</dd></div>
+            <div><dt>Stream</dt><dd id="bridge-stream">-</dd></div>
+            <div><dt>Queue</dt><dd id="bridge-queue">-</dd></div>
+            <div><dt>Event</dt><dd id="bridge-event">-</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

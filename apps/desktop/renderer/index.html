@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ovozli Hamroh</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="stage">
+    <!-- Avatar sahnasi: 3D avatar (Three.js) yoki 2D placeholder fallback -->
+    <canvas id="avatar-canvas"></canvas>
+    <div id="avatar3d-container"></div>
+
+    <!-- Chap yuqori: soat + salomlashuv + iqtibos (Unclaw-uslub) -->
+    <section id="hero">
+      <div id="clock-line"><span id="clock">--:--:--</span> <span class="dim">•</span> <span id="date-line"></span></div>
+      <h1 id="greeting">Salom.</h1>
+      <blockquote id="quote">
+        <p id="quote-text"></p>
+        <cite id="quote-author"></cite>
+      </blockquote>
+    </section>
+
+    <!-- Chap panel: vidjetlar -->
+    <nav id="sidebar">
+      <button class="side-btn" id="side-bell" title="Bildirishnomalar">&#128276;</button>
+      <button class="side-btn" id="side-weather" title="Ob-havo">&#9729;</button>
+      <button class="side-btn" id="side-diag" title="Diagnostika">&#8862;</button>
+    </nav>
+    <div id="side-card" class="hidden">
+      <h3 id="side-card-title"></h3>
+      <div id="side-card-body"></div>
+    </div>
+
+    <!-- O'ng yuqori: holat -->
+    <header id="topbar">
+      <div class="spacer"></div>
+      <div id="status-pill" class="pill" data-state="booting">Yuklanmoqda…</div>
+      <div id="provider-dot" class="dot" title="Provider holati"></div>
+      <button id="chat-toggle-btn" class="icon-btn" title="Suhbat tarixi">&#128488;</button>
+      <button id="settings-btn" class="icon-btn" title="Sozlamalar">&#9881;</button>
+    </header>
+
+    <section id="tool-status" class="hidden"></section>
+
+    <!-- Pastki panel: matn + ovoz rejimi (Unclaw-uslub) -->
+    <footer id="bottombar">
+      <div id="bottombar-inner">
+        <div id="agent-switcher">
+          <span class="chev">&#8249;</span>
+          <span id="agent-name">Hamroh</span>
+          <span class="chev">&#8250;</span>
+        </div>
+        <input id="text-input" type="text" autocomplete="off" spellcheck="false" placeholder="" />
+        <button id="ptt-btn" class="round-btn" title="Bosib turib gapiring (yoki Space)">&#127908;</button>
+        <button id="voice-toggle" class="round-btn" title="Doimiy tinglash rejimi">&#9776;</button>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Suhbat tarixi (o'ng drawer) -->
+  <aside id="conversation" class="drawer hidden">
+    <header class="drawer-head">
+      <button id="conv-close" class="icon-btn">&#10005;</button>
+      <div>
+        <div class="drawer-label">SUHBAT</div>
+        <div id="conv-agent-name" class="drawer-title">Hamroh</div>
+      </div>
+      <div class="spacer"></div>
+      <button id="conv-clear" class="icon-btn" title="Tarixni tozalash">&#128465;</button>
+    </header>
+    <div id="conv-messages"></div>
+  </aside>
+
+  <!-- Diagnostika (dev) -->
+  <aside id="diagnostics" class="drawer hidden">
+    <header class="drawer-head">
+      <button id="diag-close" class="icon-btn">&#10005;</button>
+      <div class="drawer-title">Diagnostika</div>
+    </header>
+    <div class="diag-row"><span>Holat:</span><span id="diag-state">—</span></div>
+    <div class="diag-row"><span>STT:</span><span id="diag-stt">—</span></div>
+    <div class="diag-row"><span>LLM:</span><span id="diag-llm">—</span></div>
+    <div class="diag-row"><span>TTS:</span><span id="diag-tts">—</span></div>
+    <div class="diag-row"><span>Kechikish:</span><span id="diag-latency">—</span></div>
+    <div class="diag-row"><span>FPS:</span><span id="diag-fps">—</span></div>
+    <h3>Oxirgi suhbat (dev)</h3>
+    <div id="diag-transcript" class="diag-text">—</div>
+    <div id="diag-response" class="diag-text">—</div>
+    <div id="diag-error" class="diag-text error"></div>
+  </aside>
+
+  <!-- Sozlamalar modali (tablar bilan, Unclaw-uslub) -->
+  <div id="settings-overlay" class="hidden">
+    <div id="settings-modal">
+      <header id="settings-head">
+        <span class="drawer-label">SOZLAMALAR</span>
+        <div class="spacer"></div>
+        <button id="settings-close" class="icon-btn">&#10005;</button>
+      </header>
+      <nav id="settings-tabs">
+        <button class="tab active" data-tab="profile">Profil</button>
+        <button class="tab" data-tab="chat">Suhbat</button>
+        <button class="tab" data-tab="voice">Ovoz</button>
+        <button class="tab" data-tab="avatar">Avatar</button>
+        <button class="tab" data-tab="about">Haqida</button>
+      </nav>
+
+      <section class="tab-pane active" data-pane="profile">
+        <h2 id="profile-hello">Salom.</h2>
+        <p class="pane-sub">Bu yerdagi hamma narsa shu kompyuterdagi lokal faylga saqlanadi.</p>
+        <div class="grid-2">
+          <label>Ismingiz
+            <input type="text" id="p-user-name" placeholder="masalan: Abay" />
+          </label>
+          <label>Agent ismi
+            <input type="text" id="p-agent-name" placeholder="masalan: Hamroh" />
+          </label>
+          <label>Shahar
+            <input type="text" id="p-city" placeholder="Tashkent" />
+          </label>
+          <label>Vaqt zonasi
+            <input type="text" id="p-timezone" placeholder="Asia/Tashkent" />
+          </label>
+        </div>
+        <h3 class="pane-h3">MULOQOT USLUBI <span class="pane-note">agent qanday gapiradi</span></h3>
+        <div class="grid-2">
+          <label class="slider-label">Rasmiylik <span class="slider-val" id="v-formality"></span>
+            <input type="range" id="p-formality" min="0" max="100" />
+            <div class="slider-ends"><span>Erkin</span><span>Rasmiy</span></div>
+          </label>
+          <label class="slider-label">Hazil <span class="slider-val" id="v-humor"></span>
+            <input type="range" id="p-humor" min="0" max="100" />
+            <div class="slider-ends"><span>Jiddiy</span><span>Quvnoq</span></div>
+          </label>
+          <label class="slider-label">To'g'rilik <span class="slider-val" id="v-directness"></span>
+            <input type="range" id="p-directness" min="0" max="100" />
+            <div class="slider-ends"><span>Yumshoq</span><span>Dadil</span></div>
+          </label>
+          <label class="slider-label">Batafsillik <span class="slider-val" id="v-verbosity"></span>
+            <input type="range" id="p-verbosity" min="0" max="100" />
+            <div class="slider-ends"><span>Qisqa</span><span>Batafsil</span></div>
+          </label>
+        </div>
+        <h3 class="pane-h3">QIZIQISHLAR</h3>
+        <label>Vergul bilan ajrating
+          <input type="text" id="p-hobbies" placeholder="kod, musiqa, sport, kitob" />
+        </label>
+      </section>
+
+      <section class="tab-pane" data-pane="chat">
+        <h2>Suhbatni yurituvchi model.</h2>
+        <p class="pane-sub">Har bir javob shu provayder orqali keladi.</p>
+        <label>LLM (aql)
+          <select id="set-llm"></select>
+        </label>
+        <label>OpenAI API kaliti
+          <input type="password" id="set-openai-key" placeholder="sk-…" autocomplete="off" />
+        </label>
+        <label>OpenAI modeli
+          <input type="text" id="set-openai-model" placeholder="gpt-4o-mini" />
+        </label>
+      </section>
+
+      <section class="tab-pane" data-pane="voice">
+        <h2>Javoblarni aytadigan ovoz.</h2>
+        <p class="pane-sub">ElevenLabs bulutda yuqori sifat bilan sintez qiladi.</p>
+        <label>TTS (ovoz)
+          <select id="set-tts"></select>
+        </label>
+        <label>STT (nutqni matnga)
+          <select id="set-stt"></select>
+        </label>
+        <label>ElevenLabs API kaliti
+          <input type="password" id="set-elevenlabs-key" placeholder="sk_…" autocomplete="off" />
+        </label>
+        <label>ElevenLabs ovoz IDsi (voice_id)
+          <input type="text" id="set-elevenlabs-voice" placeholder="masalan: tnSpp4vdxKPjI9w0GnoV" autocomplete="off" />
+        </label>
+        <div class="row">
+          <button id="test-voice">Ovoz testi</button>
+        </div>
+      </section>
+
+      <section class="tab-pane" data-pane="avatar">
+        <h2>Avatar ko'rinishi.</h2>
+        <p class="pane-sub">Realistik 3D avatar uchun GLB manzili (Ready Player Me formatida,
+          morphTargets=ARKit parametri bilan). Bo'sh qoldirsangiz standart avatar yuklanadi.
+          models.readyplayer.me ochilmasa: GLB faylni bir marta yuklab olib (VPN bilan),
+          loyihadagi assets/avatars/ papkasiga qo'ying — avtomatik shu yerdan olinadi.
+          Internet umuman bo'lmasa 2D avatar ishlaydi.</p>
+        <label>Avatar GLB URL
+          <input type="text" id="set-avatar-url" placeholder="https://models.readyplayer.me/….glb?morphTargets=ARKit" />
+        </label>
+        <p class="pane-note">O'zgartirishdan keyin ilovani qayta oching (Cmd+R).</p>
+      </section>
+
+      <section class="tab-pane" data-pane="about">
+        <h2>Ovozli Hamroh.</h2>
+        <p class="pane-sub">Lokal-birinchi, faqat ovozli o'zbek AI hamrohi.
+          STT/LLM/TTS provayderlari almashtiriladi; kalitlar faqat shu kompyuterdagi
+          .env faylda saqlanadi va hech qayerga yuborilmaydi.</p>
+        <p class="pane-note">Unreal/MetaHuman ko'prigi (8770-port) keyingi bosqich uchun tayyor.</p>
+      </section>
+
+      <footer id="settings-foot">
+        <div id="settings-status" class="diag-text"></div>
+        <div class="spacer"></div>
+        <button id="save-settings" class="primary">Saqlash</button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="avatar.js"></script>
+  <!-- three.js lokal vendorlangan (vendor/three): CDN'siz, tez va offline. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="avatar3d.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

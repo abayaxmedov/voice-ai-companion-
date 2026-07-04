@@ -1,0 +1,13 @@
+{
+  "name": "voice-companion-desktop",
+  "version": "0.1.0",
+  "description": "Voice-only Uzbek AI companion desktop shell (macOS MVP)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}
