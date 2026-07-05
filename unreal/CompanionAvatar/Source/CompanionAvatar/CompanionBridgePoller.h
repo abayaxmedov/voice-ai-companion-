@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "CompanionAvatarTypes.h"
 #include "CompanionBridgePoller.generated.h"
 
 UCLASS(ClassGroup=(Companion), meta=(BlueprintSpawnableComponent))
@@ -35,6 +36,21 @@ public:
 
     UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
     void OnAvatarPlayEvent(const FString& TurnId, const FString& AudioRef, const FString& Mood, const FString& Behavior);
+
+    /**
+     * To'liq ijro topshirig'i: viseme timeline + audio-tahlil egri chiziqlari
+     * bilan. Lab-sinxron uchun shu hodisani UCompanionLipSync::StartJob ga
+     * ulang (OnAvatarPlayEvent eski/sodda variant sifatida qoladi).
+     */
+    UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
+    void OnAvatarPlayJob(
+        const FString& TurnId,
+        const FString& AudioRef,
+        const FString& Mood,
+        const FString& Behavior,
+        const TArray<FCompanionVisemeFrame>& Visemes,
+        const FCompanionMouthCurves& MouthCurves
+    );
 
     UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
     void OnAvatarStateEvent(const FString& State);

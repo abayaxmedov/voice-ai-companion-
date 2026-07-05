@@ -207,6 +207,11 @@ class VoiceTurnPipeline:
             sample_rate_hz=sample_rate,
             timing={"streamed": True, **({"alignment": final_alignment} if final_alignment else {})},
         )
+        # Bridge (Unreal) uchun ham to'liq egri chiziqlar — tayyor WAV'dan.
+        try:
+            final_curves = mouth_curves_for_tts(tts)
+        except Exception:  # noqa: BLE001
+            final_curves = None
         avatar_job = AvatarPlaybackJob(
             turn_id=turn_id,
             avatar_id=agent.avatar_id,
@@ -214,6 +219,7 @@ class VoiceTurnPipeline:
             mood=mood,
             behavior=llm_response.behavior,
             visemes=generate_viseme_timeline(speakable, duration_ms, alignment=final_alignment),
+            mouth_curves=final_curves,
         )
         return VoiceTurnResult(
             turn_id=turn_id,

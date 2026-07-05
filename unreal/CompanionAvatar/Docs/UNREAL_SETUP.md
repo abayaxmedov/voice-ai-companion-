@@ -110,23 +110,25 @@ PCM 16-bit mono 24kHz WAV — atayin shunday qilingan):
   (EVENT_CONTRACT.md dagi format).
 - `avatar.interrupt` kelsa — 200 ms ichida to'xtatish (fade 100ms).
 
-## 7-bosqich. Lab-sinxron (ARKit curves)
+## 7-bosqich. Lab-sinxron (ARKit curves) — KOD TAYYOR ✅
 
-> **Kod kengaytmasi kerak:** hozirgi `OnAvatarPlayEvent` faqat TurnId/AudioRef/
-> Mood/Behavior uzatadi — viseme massivini uzatmaydi. C++ga
-> `FCompanionVisemeFrame {TimeMs, Name, Weight}` massivi + (keyin)
-> mouth_curves qo'shilishi kerak. **Bu qismni Claude'ga ayting — tayyorlab
-> beradi** (poller kengaytmasi + UCompanionLipSync komponenti).
+C++ tomoni yozib qo'yilgan:
+- `OnAvatarPlayJob` (poller) — viseme massivi + mouth_curves bilan keladi.
+- **UCompanionLipSync** komponenti — viseme+curves fuziyasi, koartikulyatsiya,
+  mood 300ms lerp, prosodiya→qosh; hammasi renderer bilan bir xil qiymatlarda.
 
-Mantiq (avatar3d.js dagi bilan bir xil, soddalashtirilgan):
-- Har tick: audio vaqtiga mos joriy/keyingi viseme'ni topish, 60-80ms
-  kirish-chiqish rampasi bilan aralashtirish (koartikulyatsiya).
-- Viseme → ARKit curve to'plami (jadval avatar3d.js `VISEME_SHAPES`da tayyor —
-  o'sha qiymatlarni ko'chiring).
-- Face AnimBP'da **Modify Curve** tugunlari bilan ARKit curve'larni yozish
-  (MetaHuman LiveLink/ARKit mapping'i shu nomlarni to'g'ridan-to'g'ri qabul
-  qiladi).
-- Mood → qosh/lab preset'lari (MOOD_SHAPES jadvali ham tayyor), 300ms lerp.
+Blueprint'da qilinadigan ish:
+1. MetaHuman aktyoriga `CompanionLipSync` komponentini qo'shing.
+2. `OnAvatarPlayJob` → `LipSync.StartJob(Visemes, MouthCurves, Mood)`;
+   audio haqiqatan boshlangan kadrda `LipSync.StartPlayback()`
+   (istasangiz sekundiga bir `SyncPlaybackTime(AudioComponent vaqti)`).
+3. `OnAvatarInterruptEvent` → `LipSync.StopJob()`;
+   `OnAvatarStateEvent` → `LipSync.SetCompanionState(State)`.
+4. Face AnimBP AnimGraph'ida **Modify Curve** tugunlari:
+   har ARKit curve uchun `LipSync.GetCurveValue("jawOpen")` va h.k.
+   (to'liq curve ro'yxati CompanionLipSync.h izohida).
+5. Bosh ta'kidlari: `GetSpeechEnergy()` → AnimBP'da boshning yengil
+   pitch/roll qo'shimchasi.
 
 ## 8-bosqich. Holatlar
 
@@ -150,12 +152,13 @@ speaking'da bosh ta'kidlari (7-bosqich energiyasidan).
 4. `OnAvatarReadyEvent`da poller allaqachon `player_url`ni bridge'ga yuboradi —
    PlayerUrl xossasiga haqiqiy player manzilini yozing.
 
-## 10-bosqich. Electron'ga joylash
+## 10-bosqich. Electron'ga joylash — KOD TAYYOR ✅
 
-Frontend'da (buni ham Claude qiladi): `/health` javobidagi
-`avatar_bridge.stream_ready` + `player_url` tekshiriladi; tayyor bo'lsa
-Three.js konteyner o'rnida player iframe ochiladi; UE o'chsa avtomatik
-Three.js'ga qaytadi (AD-002 fallback saqlanadi).
+app.js allaqachon `/health` dagi `avatar_bridge.stream_ready + player_url`ni
+kuzatadi: UE oqimi tayyor bo'lishi bilan Three.js o'rnida WebRTC player
+iframe ochiladi, oqim uzilsa avtomatik Three.js'ga qaytadi. Sizdan faqat:
+poller'dagi `PlayerUrl` xossasiga haqiqiy player manzilini yozish
+(9-bosqich) — qolganini `avatar.ready` hodisasi o'zi qiladi.
 
 ## M-chipda ishlash bo'yicha
 

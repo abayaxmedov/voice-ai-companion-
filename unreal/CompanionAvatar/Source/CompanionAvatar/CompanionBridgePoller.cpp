@@ -101,6 +101,26 @@ void UCompanionBridgePoller::PollEvents()
     Request->ProcessRequest();
 }
 
+namespace
+{
+    void ReadFloatArray(
+        const TSharedPtr<FJsonObject>& Object,
+        const TCHAR* FieldName,
+        TArray<float>& Out)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+        if (!Object->TryGetArrayField(FieldName, Values) || !Values)
+        {
+            return;
+        }
+        Out.Reserve(Values->Num());
+        for (const TSharedPtr<FJsonValue>& Value : *Values)
+        {
+            Out.Add(static_cast<float>(Value->AsNumber()));
+        }
+    }
+}
+
 void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& EventObject)
 {
     if (!EventObject.IsValid())
@@ -145,12 +165,43 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         (*Payload)->TryGetStringField(TEXT("mood"), Mood);
         FString Behavior;
         (*Payload)->TryGetStringField(TEXT("behavior"), Behavior);
-        OnAvatarPlayEvent(
-            TurnId,
-            AudioRef,
-            Mood,
-            Behavior
-        );
+
+        // Fonema-aniq lab-sinxron ma'lumotlari.
+        TArray<FCompanionVisemeFrame> Visemes;
+        const TArray<TSharedPtr<FJsonValue>>* VisemeArray = nullptr;
+        if ((*Payload)->TryGetArrayField(TEXT("visemes"), VisemeArray) && VisemeArray)
+        {
+            Visemes.Reserve(VisemeArray->Num());
+            for (const TSharedPtr<FJsonValue>& Item : *VisemeArray)
+            {
+                const TSharedPtr<FJsonObject> Frame = Item->AsObject();
+                if (!Frame.IsValid())
+                {
+                    continue;
+                }
+                FCompanionVisemeFrame Parsed;
+                Parsed.TimeMs = static_cast<int32>(Frame->GetNumberField(TEXT("time_ms")));
+                Frame->TryGetStringField(TEXT("name"), Parsed.Name);
+                Parsed.Weight = static_cast<float>(Frame->GetNumberField(TEXT("weight")));
+                Visemes.Add(MoveTemp(Parsed));
+            }
+        }
+
+        FCompanionMouthCurves Curves;
+        const TSharedPtr<FJsonObject>* CurvesObject = nullptr;
+        if ((*Payload)->TryGetObjectField(TEXT("mouth_curves"), CurvesObject) && CurvesObject->IsValid())
+        {
+            Curves.Fps = static_cast<int32>((*CurvesObject)->GetNumberField(TEXT("fps")));
+            ReadFloatArray(*CurvesObject, TEXT("energy"), Curves.Energy);
+            ReadFloatArray(*CurvesObject, TEXT("jaw"), Curves.Jaw);
+            ReadFloatArray(*CurvesObject, TEXT("close"), Curves.Close);
+            ReadFloatArray(*CurvesObject, TEXT("spread"), Curves.Spread);
+            ReadFloatArray(*CurvesObject, TEXT("round"), Curves.Round);
+            ReadFloatArray(*CurvesObject, TEXT("pitch"), Curves.Pitch);
+        }
+
+        OnAvatarPlayEvent(TurnId, AudioRef, Mood, Behavior);
+        OnAvatarPlayJob(TurnId, AudioRef, Mood, Behavior, Visemes, Curves);
         return;
     }
 

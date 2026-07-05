@@ -109,9 +109,38 @@
     return payload;
   }
 
+  // ---------- Unreal Pixel Streaming avto-almashinuv (AD-002) ----------
+  // Bridge orqali UE oqimi tayyor bo'lsa Three.js o'rnida WebRTC player
+  // ochiladi; oqim yo'qolsa avtomatik Three.js'ga qaytadi.
+  let ueFrame = null;
+  function updateAvatarStream(bridge) {
+    const ready = !!(bridge && bridge.stream_ready && bridge.player_url);
+    const three = document.getElementById("avatar3d-container");
+    const twoD = document.getElementById("avatar-canvas");
+    if (ready && !ueFrame) {
+      ueFrame = document.createElement("iframe");
+      ueFrame.id = "ue-stream-frame";
+      ueFrame.src = bridge.player_url;
+      ueFrame.allow = "autoplay";
+      ueFrame.style.cssText =
+        "position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1;background:#060304;";
+      document.getElementById("stage").prepend(ueFrame);
+      if (three) three.style.display = "none";
+      if (twoD) twoD.style.display = "none";
+      console.info("[avatar] Unreal Pixel Streaming ulandi:", bridge.player_url);
+    } else if (!ready && ueFrame) {
+      ueFrame.remove();
+      ueFrame = null;
+      if (three) three.style.display = "";
+      if (twoD) twoD.style.display = "";
+      console.info("[avatar] UE oqimi uzildi — Three.js avatarga qaytdik.");
+    }
+  }
+
   async function refreshHealth() {
     try {
       const health = await api("/health");
+      updateAvatarStream(health.avatar_bridge);
       const providers = health.providers || [];
       const allReady = providers.every((p) => p.ready);
       providerDot.className = "dot " + (allReady ? "ok" : "degraded");
