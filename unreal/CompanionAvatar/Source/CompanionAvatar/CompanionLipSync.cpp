@@ -184,11 +184,11 @@ void UCompanionLipSync::SyncPlaybackTime(float InPlaybackSeconds)
     // Katta drift'nigina tuzatamiz — mayda sakrashlar ko'rinmasin.
     if (FMath::Abs(InPlaybackSeconds - PlaybackSeconds) > 0.08f)
     {
-        PlaybackSeconds = FMath::Max(0.f, InPlaybackSeconds);
         if (InPlaybackSeconds < PlaybackSeconds)
         {
-            FrameIndex = 0;
+            FrameIndex = 0; // orqaga qaytish — indeksni qayta boshlaymiz
         }
+        PlaybackSeconds = FMath::Max(0.f, InPlaybackSeconds);
     }
 }
 
@@ -337,9 +337,10 @@ void UCompanionLipSync::EvaluateVisemes(float TimeSeconds)
         CurveValues.FindOrAdd(FName("browDownRight")) += PitchDown * 0.28f * Fade;
     }
 
+    const UWorld* World = GetWorld();
+    const float Dt = World ? World->GetDeltaSeconds() : 0.016f;
     const float EnergyTarget = FMath::Max(CurveEnergy, 0.f);
-    SmoothedEnergy += (EnergyTarget - SmoothedEnergy) *
-        FMath::Min(1.f, GetWorld()->GetDeltaSeconds() * 10.f);
+    SmoothedEnergy += (EnergyTarget - SmoothedEnergy) * FMath::Min(1.f, Dt * 10.f);
 }
 
 void UCompanionLipSync::TickComponent(
