@@ -1,5 +1,6 @@
 """Provider abstractions and built-in adapters."""
 
+from .aisha import AishaSTTProvider, AishaTTSProvider
 from .base import (
     LLMProvider,
     STTProvider,
@@ -14,6 +15,8 @@ from .registry import ProviderRegistry
 from .stt import ElevenLabsSTTProvider
 
 __all__ = [
+    "AishaSTTProvider",
+    "AishaTTSProvider",
     "ElevenLabsSTTProvider",
     "OpenAILLMProvider",
     "OpenAISTTProvider",

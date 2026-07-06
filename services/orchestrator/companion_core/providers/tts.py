@@ -245,9 +245,17 @@ class ElevenLabsTTSProvider(TTSProvider):
     # (mouth curves) imkonini beradi. mp3 ga qaytarilsa tahlil o'chadi, xolos.
     output_format: str = "pcm_24000"
     language_code: str = "uz"
+    speed: str = ""  # 0.7–1.2 (ElevenLabs voice_settings.speed); bo'sh = 1.0
     audio_cache_dir: str = "/private/tmp/voice-ai-companion/audio"
     client: ElevenLabsClient | None = field(default=None, repr=False, compare=False)
     provider_id: str = "elevenlabs"
+
+    def _voice_settings(self, mood: str, speech_style: str) -> dict[str, object]:
+        settings = voice_settings_for(mood, speech_style)
+        speed = _parse_speed(self.speed)
+        if speed is not None:
+            settings["speed"] = speed
+        return settings
 
     def health(self) -> ProviderHealth:
         if not self.api_key_configured or not self.api_key:
@@ -295,7 +303,7 @@ class ElevenLabsTTSProvider(TTSProvider):
             raise ValueError("ELEVENLABS_VOICE_ID is not configured.")
 
         language_code = _elevenlabs_language_code(self.language_code, language)
-        voice_settings = voice_settings_for(mood, speech_style)
+        voice_settings = self._voice_settings(mood, speech_style)
         client = self.client or ElevenLabsHttpClient(base_url=self.base_url)
 
         # Prefer the with-timestamps endpoint: character alignment powers
@@ -408,7 +416,7 @@ class ElevenLabsTTSProvider(TTSProvider):
             text=normalized_text,
             output_format=self.output_format,
             language_code=_elevenlabs_language_code(self.language_code, language),
-            voice_settings=voice_settings_for(mood, speech_style),
+            voice_settings=self._voice_settings(mood, speech_style),
         )
 
     def _write_audio(self, audio: bytes, extension: str | None = None) -> Path:
@@ -587,6 +595,18 @@ def _sample_rate_for_output_format(output_format: str) -> int | None:
         return int(parts[1])
     except ValueError:
         return None
+
+
+def _parse_speed(value: str) -> float | None:
+    """ELEVENLABS_SPEED: 0.7–1.2 oralig'ida son; bo'sh/noto'g'ri = None (1.0)."""
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        speed = float(text)
+    except ValueError:
+        return None
+    return round(min(1.2, max(0.7, speed)), 2)
 
 
 def _language_code_from_locale(language: str) -> str | None:

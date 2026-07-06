@@ -302,6 +302,12 @@ class RuntimeContext:
                 "voice_id": self.config.elevenlabs_voice_id,
                 "model_id": self.config.elevenlabs_model_id,
             },
+            "aisha": {
+                "api_key_configured": self.config.aisha_api_key_configured,
+                "model": self.config.aisha_tts_model,
+                "mood": self.config.aisha_tts_mood,
+                "voice_id": self.config.aisha_voice_id,
+            },
             "voice_mode": self.config.voice_mode,
         }
 
@@ -311,6 +317,11 @@ class RuntimeContext:
         "elevenlabs_api_key": "ELEVENLABS_API_KEY",
         "elevenlabs_voice_id": "ELEVENLABS_VOICE_ID",
         "elevenlabs_model_id": "ELEVENLABS_MODEL_ID",
+        "aisha_api_key": "AISHA_API_KEY",
+        "aisha_tts_mood": "AISHA_TTS_MOOD",
+        "aisha_voice_id": "AISHA_VOICE_ID",
+        "aisha_tts_speed": "AISHA_TTS_SPEED",
+        "elevenlabs_speed": "ELEVENLABS_SPEED",
         "stt_provider": "COMPANION_STT_PROVIDER",
         "llm_provider": "COMPANION_LLM_PROVIDER",
         "tts_provider": "COMPANION_TTS_PROVIDER",

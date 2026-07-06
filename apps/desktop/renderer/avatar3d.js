@@ -21,15 +21,17 @@ const DEFAULT_AVATAR_URL =
 const API_BASE =
   (window.companion && window.companion.orchestratorUrl) ||
   (location.protocol.startsWith("http") ? location.origin : "http://127.0.0.1:8765");
-// Ba'zi tarmoqlarda models.readyplayer.me ochilmaydi — kaskad:
-// localStorage → lokal backend (assets/avatars/*.glb) → RPM → jsdelivr namuna.
+// STANDART AVATAR: TalkingHead "brunette" — ko'zoynakli qiz (foydalanuvchi
+// tanlovi). To'liq ARKit + viseme morphlar; jsdelivr orqali barcha tarmoqlarda
+// ochiladi. Litsenziya: CC BY-NC 4.0 (nokommersial).
+const PREFERRED_AVATAR_URL =
+  "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@master/avatars/brunette.glb";
+// Kaskad: localStorage (aniq tanlov) → lokal backend (assets/avatars/*.glb —
+// eng tez, tarmoqsiz) → QIZ (jsdelivr) → RPM zaxira.
 const FALLBACK_URLS = [
   API_BASE + "/avatar/model",
+  PREFERRED_AVATAR_URL,
   DEFAULT_AVATAR_URL,
-  // RPM'da yaratilgan namuna (to'liq ARKit + viseme morphlar), TalkingHead
-  // loyihasidan; litsenziya CC BY-NC 4.0 (nokommersial). jsdelivr orqali —
-  // models.readyplayer.me yopiq tarmoqlarda ham ochiladi.
-  "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@master/avatars/brunette.glb",
 ];
 const CANDIDATE_TIMEOUT_MS = 9000;
 const LOCAL_TIMEOUT_MS = 4000; // lokal backend uchun qisqa
@@ -287,6 +289,10 @@ function candidateUrls() {
   const push = (u) => { if (u && !urls.includes(u)) urls.push(u); };
   const saved = localStorage.getItem("avatar_glb_url");
   if (saved) push(withArkitParams(saved));
+  // Standart tartib: lokal fayl → qiz (CDN) — last_good xotirasidan ham ustun,
+  // eski manba yopishib qolmasin.
+  push(API_BASE + "/avatar/model");
+  push(PREFERRED_AVATAR_URL);
   push(localStorage.getItem("avatar_url_last_good"));
   for (const url of FALLBACK_URLS) push(url);
 
@@ -484,6 +490,8 @@ function polishMaterials(node) {
       p.clearcoat = 0.4; // sochga yaltirash chizig'i
       p.clearcoatRoughness = 0.45;
       p.envMapIntensity = 0.5;
+      // MSAA bilan soch tolalari chetlari silliqlashadi (qattiq zinapoya yo'q).
+      if (p.alphaTest > 0 || p.transparent) p.alphaToCoverage = true;
       return p;
     }
     if (name.includes("outfit") || name.includes("cloth") || name.includes("top")) {
@@ -552,6 +560,24 @@ function setupAvatar(gltf, ctx) {
     }
   });
   const chest = bones.spine2 || bones.spine1;
+
+  // Tekstura sayqali: maksimal anisotropiya — teri/soch/ko'zoynak teksturalari
+  // qiya burchakda ham o'tkir ko'rinadi (sayqal talabi).
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  model.traverse((node) => {
+    if (!node.isMesh) return;
+    const mats = Array.isArray(node.material) ? node.material : [node.material];
+    for (const m of mats) {
+      if (!m) continue;
+      for (const slot of ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap"]) {
+        const texture = m[slot];
+        if (texture && texture.anisotropy !== maxAniso) {
+          texture.anisotropy = maxAniso;
+          texture.needsUpdate = true;
+        }
+      }
+    }
+  });
 
   const rest = {
     head: bones.head ? bones.head.rotation.clone() : null,

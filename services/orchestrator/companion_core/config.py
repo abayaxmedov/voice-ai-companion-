@@ -21,11 +21,23 @@ class ProviderRuntimeConfig:
     elevenlabs_base_url: str = "https://api.elevenlabs.io"
     elevenlabs_output_format: str = "pcm_24000"
     elevenlabs_language_code: str = "uz"
+    elevenlabs_speed: str = ""  # 0.7–1.2; bo'sh = standart 1.0
     elevenlabs_stt_model_id: str = "scribe_v2"
     elevenlabs_stt_language_code: str = "uz"
 
     kokoro_model_path: str = ""
     kokoro_voice_name: str = ""
+
+    # Aisha AI (aisha.group) — o'zbek tiliga ixtisoslashgan STT/TTS.
+    aisha_api_key_env: str = "AISHA_API_KEY"
+    aisha_api_key: str = field(default="", repr=False, compare=False)
+    aisha_api_key_configured: bool = False
+    aisha_base_url: str = "https://back.aisha.group"
+    aisha_tts_model: str = "Gulnoza"
+    aisha_tts_mood: str = "Neutral"
+    aisha_tts_speed: str = "1.0"
+    aisha_voice_id: str = ""
+    aisha_language: str = "uz"
 
     openai_api_key_env: str = "OPENAI_API_KEY"
     openai_api_key: str = field(default="", repr=False, compare=False)
@@ -69,21 +81,29 @@ def load_runtime_config(env: Mapping[str, str] | None = None) -> ProviderRuntime
     deepgram_key_env = _env(source, "DEEPGRAM_API_KEY_ENV", "DEEPGRAM_API_KEY")
     openai_key_env = _env(source, "OPENAI_API_KEY_ENV", "OPENAI_API_KEY")
 
+    aisha_key_env = _env(source, "AISHA_API_KEY_ENV", "AISHA_API_KEY")
+
     elevenlabs_api_key = _env(source, elevenlabs_key_env)
     openai_api_key = _env(source, openai_key_env)
+    aisha_api_key = _env(source, aisha_key_env)
     hume_api_key = _env(source, hume_key_env)
     hume_evi_config_id = _env(source, "HUME_EVI_CONFIG_ID", _env(source, "HUME_CONFIG_ID"))
     if elevenlabs_api_key:
         default_stt_provider = "elevenlabs_stt"
+    elif aisha_api_key:
+        default_stt_provider = "aisha_stt"
     elif openai_api_key:
         default_stt_provider = "openai_stt"
     else:
         default_stt_provider = "mock_stt"
     default_llm_provider = "openai_llm" if openai_api_key else "local_companion"
     elevenlabs_voice_id = _env(source, "ELEVENLABS_VOICE_ID")
-    default_tts_provider = (
-        "elevenlabs_tts" if elevenlabs_api_key and elevenlabs_voice_id else "mock_tts"
-    )
+    if elevenlabs_api_key and elevenlabs_voice_id:
+        default_tts_provider = "elevenlabs_tts"
+    elif aisha_api_key:
+        default_tts_provider = "aisha_tts"
+    else:
+        default_tts_provider = "mock_tts"
     default_voice_mode = "pipeline"
 
     return ProviderRuntimeConfig(
@@ -111,10 +131,20 @@ def load_runtime_config(env: Mapping[str, str] | None = None) -> ProviderRuntime
             "pcm_24000",
         ),
         elevenlabs_language_code=_env(source, "ELEVENLABS_LANGUAGE_CODE", "uz"),
+        elevenlabs_speed=_env(source, "ELEVENLABS_SPEED"),
         elevenlabs_stt_model_id=_env(source, "ELEVENLABS_STT_MODEL_ID", "scribe_v2"),
         elevenlabs_stt_language_code=_env(source, "ELEVENLABS_STT_LANGUAGE_CODE", "uz"),
         kokoro_model_path=_env(source, "KOKORO_MODEL_PATH"),
         kokoro_voice_name=_env(source, "KOKORO_VOICE_NAME"),
+        aisha_api_key_env=aisha_key_env,
+        aisha_api_key=aisha_api_key,
+        aisha_api_key_configured=bool(aisha_api_key),
+        aisha_base_url=_env(source, "AISHA_BASE_URL", "https://back.aisha.group"),
+        aisha_tts_model=_env(source, "AISHA_TTS_MODEL", "Gulnoza"),
+        aisha_tts_mood=_env(source, "AISHA_TTS_MOOD", "Neutral"),
+        aisha_tts_speed=_env(source, "AISHA_TTS_SPEED", "1.0"),
+        aisha_voice_id=_env(source, "AISHA_VOICE_ID"),
+        aisha_language=_env(source, "AISHA_LANGUAGE", "uz"),
         openai_api_key_env=openai_key_env,
         openai_api_key=openai_api_key,
         openai_api_key_configured=bool(openai_api_key),

@@ -165,19 +165,41 @@
 
       <section class="tab-pane" data-pane="voice">
         <h2>Javoblarni aytadigan ovoz.</h2>
-        <p class="pane-sub">ElevenLabs bulutda yuqori sifat bilan sintez qiladi.</p>
+        <p class="pane-sub">ElevenLabs — bulutda yuqori sifat; Aisha — o'zbek tiliga
+          ixtisoslashgan (aisha.group). Ikkalasini almashtirib solishtiring.</p>
         <label>TTS (ovoz)
           <select id="set-tts"></select>
         </label>
         <label>STT (nutqni matnga)
           <select id="set-stt"></select>
         </label>
+
+        <h3 class="pane-h3">ELEVENLABS</h3>
         <label>ElevenLabs API kaliti
           <input type="password" id="set-elevenlabs-key" placeholder="sk_…" autocomplete="off" />
         </label>
         <label>ElevenLabs ovoz IDsi (voice_id)
           <input type="text" id="set-elevenlabs-voice" placeholder="masalan: tnSpp4vdxKPjI9w0GnoV" autocomplete="off" />
         </label>
+
+        <h3 class="pane-h3">AISHA AI</h3>
+        <label>Aisha API kaliti
+          <input type="password" id="set-aisha-key" placeholder="Aisha Space → API kalitlari" autocomplete="off" />
+        </label>
+        <div class="grid-2">
+          <label>Aisha kayfiyati (Gulnoza)
+            <select id="set-aisha-mood">
+              <option value="Neutral">Neutral</option>
+              <option value="Cheerful">Cheerful</option>
+              <option value="Happy">Happy</option>
+              <option value="Sad">Sad</option>
+            </select>
+          </label>
+          <label>Aisha custom voice_id (ixtiyoriy)
+            <input type="text" id="set-aisha-voice" placeholder="masalan: 12" autocomplete="off" />
+          </label>
+        </div>
+
         <div class="row">
           <button id="test-voice">Ovoz testi</button>
         </div>
@@ -213,11 +235,10 @@
   </div>
 
   <script src="avatar.js"></script>
-  <!-- Modul oldindan yuklash: 3D tezroq tayyor bo'ladi. -->
-  <link rel="modulepreload" href="./vendor/three/three.module.js" />
-  <link rel="modulepreload" href="./vendor/three/addons/loaders/GLTFLoader.js" />
-
-  <!-- three.js lokal vendorlangan (vendor/three): CDN'siz, tez va offline. -->
+  <!-- three.js lokal vendorlangan (vendor/three): CDN'siz, tez va offline.
+       MUHIM: importmap HAR QANDAY modul yuklanishidan (shu jumladan
+       modulepreload'dan) OLDIN turishi shart — aks holda Chromium uni
+       e'tiborsiz qoldiradi va "three" specifier topilmaydi. -->
   <script type="importmap">
     {
       "imports": {
@@ -226,6 +247,9 @@
       }
     }
   </script>
+  <!-- Modul oldindan yuklash: 3D tezroq tayyor bo'ladi (importmap'dan keyin!). -->
+  <link rel="modulepreload" href="./vendor/three/three.module.js" />
+  <link rel="modulepreload" href="./vendor/three/addons/loaders/GLTFLoader.js" />
   <script type="module" src="avatar3d.js"></script>
   <script src="app.js"></script>
 </body>

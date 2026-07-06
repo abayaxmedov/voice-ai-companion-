@@ -72,21 +72,31 @@ async function ensureBackend() {
   return waitForHealth();
 }
 
-function createWindow() {
+async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1160,
     height: 780,
     minWidth: 900,
     minHeight: 620,
     title: "Ovozli Hamroh",
-    backgroundColor: "#0b0d14",
+    backgroundColor: "#060304",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
-  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+
+  // MUHIM: sahifa file:// emas, backend'dan (http) ochiladi — Chromium file://
+  // rejimida ES-modullarni (three.js) bloklaydi, shu sabab 3D avatar faqat
+  // http origin'da ishlaydi. Backend renderer'ni o'zi statik beradi.
+  const health = await ensureBackend();
+  if (health) {
+    mainWindow.loadURL(`${ORCHESTRATOR_URL}/`);
+  } else {
+    // Backend ko'tarilmasa ham UI ochilsin (2D zaxira rejim).
+    mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  }
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

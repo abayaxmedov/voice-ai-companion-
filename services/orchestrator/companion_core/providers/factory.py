@@ -9,6 +9,7 @@ from companion_core.providers import (
     MockTTSProvider,
     ProviderRegistry,
 )
+from companion_core.providers.aisha import AishaSTTProvider, AishaTTSProvider
 from companion_core.providers.openai_llm import OpenAILLMProvider
 from companion_core.providers.openai_stt import OpenAISTTProvider
 from companion_core.providers.stt import ElevenLabsSTTProvider
@@ -45,6 +46,15 @@ def build_default_registry(config: ProviderRuntimeConfig | None = None) -> Provi
             language_code=config.openai_stt_language_code,
         )
     )
+    registry.register_stt(
+        AishaSTTProvider(
+            api_key_configured=config.aisha_api_key_configured,
+            api_key_env=config.aisha_api_key_env,
+            api_key=config.aisha_api_key,
+            base_url=config.aisha_base_url,
+            language_code=config.aisha_language,
+        )
+    )
     registry.register_llm(MockLLMProvider())
     registry.register_llm(LocalCompanionLLMProvider())
     registry.register_llm(
@@ -67,6 +77,21 @@ def build_default_registry(config: ProviderRuntimeConfig | None = None) -> Provi
             base_url=config.elevenlabs_base_url,
             output_format=config.elevenlabs_output_format,
             language_code=config.elevenlabs_language_code,
+            speed=config.elevenlabs_speed,
+            audio_cache_dir=config.audio_cache_dir,
+        )
+    )
+    registry.register_tts(
+        AishaTTSProvider(
+            api_key_configured=config.aisha_api_key_configured,
+            api_key_env=config.aisha_api_key_env,
+            api_key=config.aisha_api_key,
+            base_url=config.aisha_base_url,
+            model=config.aisha_tts_model,
+            mood=config.aisha_tts_mood,
+            speed=config.aisha_tts_speed,
+            voice_id=config.aisha_voice_id,
+            language_code=config.aisha_language,
             audio_cache_dir=config.audio_cache_dir,
         )
     )

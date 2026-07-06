@@ -293,7 +293,9 @@
   }
 
   function pickMimeType() {
-    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+    // audio/mp4 (m4a) birinchi: Aisha STT webm qabul qilmaydi (mp3/wav/ogg/m4a),
+    // ElevenLabs va OpenAI uchun ham m4a bemalol ishlaydi.
+    const candidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
     return candidates.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
   }
 
@@ -1047,6 +1049,11 @@
       document.getElementById("set-elevenlabs-key").placeholder = current.elevenlabs?.api_key_configured
         ? "•••••• (saqlangan)"
         : "sk_…";
+      document.getElementById("set-aisha-key").placeholder = current.aisha?.api_key_configured
+        ? "•••••• (saqlangan)"
+        : "Aisha Space → API kalitlari";
+      document.getElementById("set-aisha-mood").value = current.aisha?.mood || "Neutral";
+      document.getElementById("set-aisha-voice").value = current.aisha?.voice_id || "";
       document.getElementById("set-avatar-url").value =
         localStorage.getItem("avatar_glb_url") || "";
     } catch (err) {
@@ -1080,10 +1087,16 @@
     const openaiModel = document.getElementById("set-openai-model").value.trim();
     const elKey = document.getElementById("set-elevenlabs-key").value.trim();
     const voiceId = document.getElementById("set-elevenlabs-voice").value.trim();
+    const aishaKey = document.getElementById("set-aisha-key").value.trim();
+    const aishaMood = document.getElementById("set-aisha-mood").value;
+    const aishaVoice = document.getElementById("set-aisha-voice").value.trim();
     if (openaiKey) settingsPayload.openai_api_key = openaiKey;
     if (openaiModel) settingsPayload.openai_model = openaiModel;
     if (elKey) settingsPayload.elevenlabs_api_key = elKey;
     if (voiceId) settingsPayload.elevenlabs_voice_id = voiceId;
+    if (aishaKey) settingsPayload.aisha_api_key = aishaKey;
+    if (aishaMood) settingsPayload.aisha_tts_mood = aishaMood;
+    settingsPayload.aisha_voice_id = aishaVoice;
 
     const profilePayload = {
       user_name: document.getElementById("p-user-name").value,
@@ -1107,6 +1120,7 @@
       await api("/settings", { method: "PATCH", body: JSON.stringify(settingsPayload) });
       document.getElementById("set-openai-key").value = "";
       document.getElementById("set-elevenlabs-key").value = "";
+      document.getElementById("set-aisha-key").value = "";
       applyProfileToUi();
       settingsStatus("Saqlandi. Providerlar qayta yuklandi.");
       await refreshHealth();
