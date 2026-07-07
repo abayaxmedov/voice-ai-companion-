@@ -13,8 +13,7 @@
 	"Plugins": [
 		{
 			"Name": "PixelStreaming",
-			"Enabled": true,
-			"Optional": true
+			"Enabled": false
 		},
 		{
 			"Name": "PixelStreaming2",

@@ -169,6 +169,13 @@ void UCompanionLipSync::StartJob(
     Fade = 0.f;
     bClockRunning = false;
     bJobActive = Frames.Num() > 1 || Curves.IsUsable();
+    // Timeline uzunligi — bridge'dan stop/interrupt kelmasa ham o'zimiz
+    // to'xtashimiz uchun (aks holda IsSpeaking abadiy true qoladi).
+    const float VisemeEnd = Frames.Num() > 0 ? Frames.Last().TimeMs / 1000.f : 0.f;
+    const float CurveEnd = Curves.IsUsable()
+        ? static_cast<float>(Curves.Jaw.Num()) / static_cast<float>(FMath::Max(1, Curves.Fps))
+        : 0.f;
+    JobDurationSeconds = FMath::Max(VisemeEnd, CurveEnd);
     SetMood(Mood);
 }
 
@@ -361,6 +368,10 @@ void UCompanionLipSync::TickComponent(
         if (bClockRunning)
         {
             PlaybackSeconds += DeltaTime;
+            if (PlaybackSeconds > JobDurationSeconds + 0.3f)
+            {
+                StopJob(); // Fade pastdagi else-shoxda silliq so'nadi
+            }
         }
         EvaluateVisemes(PlaybackSeconds);
     }

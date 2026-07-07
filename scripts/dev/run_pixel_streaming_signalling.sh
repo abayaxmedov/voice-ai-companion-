@@ -26,10 +26,13 @@ fi
 
 cd "$PSI_DIR/SignallingWebServer"
 
-# Eski layout: tayyor bash skriptlar bilan.
+# Epic'ning tayyor bash skriptlari (UE5.8 branch'ida ham shu yo'l ishlaydi).
+# --nosudo shart: usiz start.sh sudo parol so'rab osilib qoladi; macOS'da
+# 80-port baribir oddiy foydalanuvchiga ochiq. Qo'shimcha server flaglari
+# noma'lum bo'lsa parse_args xato beradi — ehtiyot bo'lib qo'shing.
 if [ -x platform_scripts/bash/start.sh ]; then
   [ -x platform_scripts/bash/setup.sh ] && platform_scripts/bash/setup.sh || true
-  exec platform_scripts/bash/start.sh "$@"
+  exec platform_scripts/bash/start.sh --nosudo "$@"
 fi
 
 # Yangi TypeScript layout (wilbur): npm bilan.

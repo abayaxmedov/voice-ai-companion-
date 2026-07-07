@@ -35,9 +35,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Bridge")
     FString AvatarId = TEXT("metahuman_default");
 
-    /** Pixel Streaming player sahifasi (signalling server HTTP porti, sukut 80) — Electron shu URLni iframe qiladi. */
+    /**
+     * Pixel Streaming player sahifasi (signalling server HTTP porti, sukut 80) —
+     * Electron shu URLni iframe qiladi. AutoConnect'siz Epic player "Click to
+     * start" ekranida qotib qoladi; StartVideoMuted autoplay bloklanishidan
+     * saqlaydi (TTS baribir Electron'da), HoveringMouse pointer-lock'ni oldini
+     * oladi, HideUI overlay tugmalarini yashiradi.
+     */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Bridge")
-    FString PlayerUrl = TEXT("http://127.0.0.1:80");
+    FString PlayerUrl = TEXT("http://127.0.0.1:80/?AutoConnect=true&StartVideoMuted=true&HoveringMouse=true&HideUI=true");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Bridge")
     float PollIntervalSeconds = 0.25f;
@@ -102,6 +108,13 @@ protected:
 
 private:
     FTimerHandle PollTimerHandle;
+    FTimerHandle ReadyTimerHandle;
+
+    /**
+     * Bridge /avatar/ready ni 2xx bilan tasdiqladimi. Poll xato bo'lsa false'ga
+     * qaytadi (bridge restart stsenariysi) — ready timer yana e'lon qiladi.
+     */
+    bool bReadyAcknowledged = false;
 
     void AnnounceReady();
     void PollEvents();

@@ -39,6 +39,9 @@ class MetaHumanBridgeRuntime:
         )
 
     def mark_ready(self, avatar_id: str | None = None, player_url: str | None = None) -> dict[str, Any]:
+        # UE yangi ulandi — undan oldin yig'ilib qolgan eski avatar.play
+        # hodisalari birdan replay bo'lmasligi uchun navbatni tozalaymiz.
+        self._events.clear()
         if avatar_id:
             self.avatar_id = avatar_id
         if player_url:

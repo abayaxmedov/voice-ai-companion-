@@ -95,6 +95,7 @@ private:
     bool bJobActive = false;
     bool bClockRunning = false;
     float PlaybackSeconds = 0.f;
+    float JobDurationSeconds = 0.f;
     float Fade = 0.f;
     int32 FrameIndex = 0;
     TArray<FCompanionVisemeFrame> Frames;

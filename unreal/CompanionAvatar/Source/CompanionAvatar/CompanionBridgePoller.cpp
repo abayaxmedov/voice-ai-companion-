@@ -18,13 +18,22 @@ void UCompanionBridgePoller::BeginPlay()
 {
     Super::BeginPlay();
     PollIntervalSeconds = FMath::Max(0.05f, PollIntervalSeconds);
-    AnnounceReady();
     GetWorld()->GetTimerManager().SetTimer(
         PollTimerHandle,
         this,
         &UCompanionBridgePoller::PollEvents,
         PollIntervalSeconds,
         true
+    );
+    // Ready e'loni tasdiqlangunga qadar har 2 soniyada takrorlanadi — UE
+    // bridge'dan oldin ochilsa yoki bridge qayta ishga tushsa ham tiklanadi.
+    GetWorld()->GetTimerManager().SetTimer(
+        ReadyTimerHandle,
+        this,
+        &UCompanionBridgePoller::AnnounceReady,
+        2.0f,
+        true,
+        0.f
     );
 }
 
@@ -33,16 +42,49 @@ void UCompanionBridgePoller::EndPlay(const EEndPlayReason::Type EndPlayReason)
     if (GetWorld())
     {
         GetWorld()->GetTimerManager().ClearTimer(PollTimerHandle);
+        GetWorld()->GetTimerManager().ClearTimer(ReadyTimerHandle);
     }
     Super::EndPlay(EndPlayReason);
 }
 
 void UCompanionBridgePoller::AnnounceReady()
 {
+    if (bReadyAcknowledged)
+    {
+        return;
+    }
+
     TSharedRef<FJsonObject> Payload = MakeShared<FJsonObject>();
     Payload->SetStringField(TEXT("avatar_id"), AvatarId);
     Payload->SetStringField(TEXT("player_url"), PlayerUrl);
-    SendJsonPost(ReadyUrl, Payload);
+
+    FString Body;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Body);
+    FJsonSerializer::Serialize(Payload, Writer);
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(ReadyUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(Body);
+    TWeakObjectPtr<UCompanionBridgePoller> WeakThis(this);
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis](FHttpRequestPtr, FHttpResponsePtr Response, bool bSucceeded)
+        {
+            if (!WeakThis.IsValid() || !bSucceeded || !Response.IsValid())
+            {
+                return;
+            }
+            const int32 Code = Response->GetResponseCode();
+            if (Code >= 200 && Code < 300)
+            {
+                WeakThis->bReadyAcknowledged = true;
+                UE_LOG(LogTemp, Log, TEXT("Companion bridge: ready tasdiqlandi (player_url=%s)"),
+                    *WeakThis->PlayerUrl);
+            }
+        }
+    );
+    Request->ProcessRequest();
 }
 
 void UCompanionBridgePoller::SendJsonPost(const FString& Url, const TSharedRef<FJsonObject>& Payload) const
@@ -68,14 +110,21 @@ void UCompanionBridgePoller::PollEvents()
     Request->OnProcessRequestComplete().BindLambda(
         [WeakThis](FHttpRequestPtr, FHttpResponsePtr Response, bool bSucceeded)
         {
-            if (!WeakThis.IsValid() || !bSucceeded || !Response.IsValid())
+            if (!WeakThis.IsValid())
             {
+                return;
+            }
+            if (!bSucceeded || !Response.IsValid())
+            {
+                // Bridge yiqildi/qayta ishga tushdi — ready'ni qayta e'lon qilamiz.
+                WeakThis->bReadyAcknowledged = false;
                 return;
             }
 
             const int32 ResponseCode = Response->GetResponseCode();
             if (ResponseCode < 200 || ResponseCode >= 300)
             {
+                WeakThis->bReadyAcknowledged = false;
                 return;
             }
 

@@ -22,9 +22,10 @@ RES_X="${RES%x*}"; RES_Y="${RES#*x}"
 ARGS=(
   "$UPROJECT" -game
   -ResX="$RES_X" -ResY="$RES_Y" -windowed
-  # ConnectionURL DefaultGame.ini'da ham bor; launch-param ustunlik qiladi
+  # ConnectionURL DefaultGame.ini'da ham bor; launch-param ustunlik qiladi.
+  # Diqqat: -PixelStreamingURL (v1) atayin YO'Q — legacy plugin o'chirilgan,
+  # bitta signalling serverga ikkita streamer ulanib qolmasin.
   -PixelStreamingConnectionURL="$SIGNAL_URL"
-  -PixelStreamingURL="$SIGNAL_URL"
 )
 [ "${HEADLESS:-0}" = "1" ] && ARGS+=(-RenderOffscreen)
 
