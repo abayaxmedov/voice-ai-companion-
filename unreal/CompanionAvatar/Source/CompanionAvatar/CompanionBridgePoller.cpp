@@ -152,6 +152,7 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         FString ReadyPlayerUrl;
         (*Payload)->TryGetStringField(TEXT("player_url"), ReadyPlayerUrl);
         OnAvatarReadyEvent(ReadyAvatarId, ReadyPlayerUrl);
+        OnReadyReceived.Broadcast(ReadyAvatarId, ReadyPlayerUrl);
         return;
     }
 
@@ -202,6 +203,7 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
 
         OnAvatarPlayEvent(TurnId, AudioRef, Mood, Behavior);
         OnAvatarPlayJob(TurnId, AudioRef, Mood, Behavior, Visemes, Curves);
+        OnPlayJobReceived.Broadcast(TurnId, AudioRef, Mood, Behavior, Visemes, Curves);
         return;
     }
 
@@ -210,6 +212,7 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         FString State;
         (*Payload)->TryGetStringField(TEXT("state"), State);
         OnAvatarStateEvent(State);
+        OnStateReceived.Broadcast(State);
         return;
     }
 
@@ -220,6 +223,7 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         FString Reason;
         (*Payload)->TryGetStringField(TEXT("reason"), Reason);
         OnAvatarInterruptEvent(TurnId, Reason);
+        OnInterruptReceived.Broadcast(TurnId, Reason);
         return;
     }
 
@@ -228,6 +232,7 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         FString TurnId;
         (*Payload)->TryGetStringField(TEXT("turn_id"), TurnId);
         OnAvatarCompletedEvent(TurnId);
+        OnCompletedReceived.Broadcast(TurnId);
         return;
     }
 
@@ -238,5 +243,6 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         FString Message;
         (*Payload)->TryGetStringField(TEXT("message"), Message);
         OnAvatarErrorEvent(TurnId, Message);
+        OnErrorReceived.Broadcast(TurnId, Message);
     }
 }

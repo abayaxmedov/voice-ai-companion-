@@ -43,3 +43,6 @@ nohup.out
 
 # IDE
 .idea/
+
+# Epic Pixel Streaming infra (signalling server clone, generatsiya qilinadi)
+unreal/PixelStreamingInfrastructure/

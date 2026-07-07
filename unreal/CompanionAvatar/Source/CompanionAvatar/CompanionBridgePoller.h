@@ -5,6 +5,19 @@
 #include "CompanionAvatarTypes.h"
 #include "CompanionBridgePoller.generated.h"
 
+/**
+ * BIE (BlueprintImplementableEvent) hodisalarning C++/BP'dan ulanadigan
+ * delegate ko'rinishlari: BIE faqat Blueprint subclass'da implement qilinadi,
+ * delegate esa AddDynamic bilan istalgan joydan (masalan ACompanionDirector)
+ * ulanadi. Ikkalasi ham bir vaqtda fire bo'ladi.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionReadySignature, const FString&, AvatarId, const FString&, PlayerUrl);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams(FCompanionPlayJobSignature, const FString&, TurnId, const FString&, AudioRef, const FString&, Mood, const FString&, Behavior, const TArray<FCompanionVisemeFrame>&, Visemes, const FCompanionMouthCurves&, MouthCurves);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCompanionStateSignature, const FString&, State);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionInterruptSignature, const FString&, TurnId, const FString&, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCompanionCompletedSignature, const FString&, TurnId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionErrorSignature, const FString&, TurnId, const FString&, Message);
+
 UCLASS(ClassGroup=(Companion), meta=(BlueprintSpawnableComponent))
 class COMPANIONAVATAR_API UCompanionBridgePoller : public UActorComponent
 {
@@ -22,8 +35,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Bridge")
     FString AvatarId = TEXT("metahuman_default");
 
+    /** Pixel Streaming player sahifasi (signalling server HTTP porti, sukut 80) — Electron shu URLni iframe qiladi. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Bridge")
-    FString PlayerUrl = TEXT("http://127.0.0.1:8888");
+    FString PlayerUrl = TEXT("http://127.0.0.1:80");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Bridge")
     float PollIntervalSeconds = 0.25f;
@@ -63,6 +77,24 @@ public:
 
     UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
     void OnAvatarErrorEvent(const FString& TurnId, const FString& Message);
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionReadySignature OnReadyReceived;
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionPlayJobSignature OnPlayJobReceived;
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionStateSignature OnStateReceived;
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionInterruptSignature OnInterruptReceived;
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionCompletedSignature OnCompletedReceived;
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionErrorSignature OnErrorReceived;
 
 protected:
     virtual void BeginPlay() override;

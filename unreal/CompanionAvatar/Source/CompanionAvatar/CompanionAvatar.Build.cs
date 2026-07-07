@@ -12,6 +12,7 @@ public class CompanionAvatar : ModuleRules
             "CoreUObject",
             "Engine",
             "InputCore",
+            "CinematicCamera",
             "HTTP",
             "Json",
             "JsonUtilities"

@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.7",
+	"EngineAssociation": "5.8",
 	"Category": "AI Companion",
 	"Description": "Custom MetaHuman voice companion runtime with Pixel Streaming bridge.",
 	"Modules": [
@@ -28,6 +28,10 @@
 		},
 		{
 			"Name": "MetaHumanCharacter",
+			"Enabled": true
+		},
+		{
+			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		}
 	]

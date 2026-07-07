@@ -27,6 +27,49 @@ ARKit blendshape'larni tushunadi — mapping deyarli 1:1.
 
 ---
 
+## HOLAT (2026-07-07): nima avtomatik, nima qo'lda
+
+C++/config bilan avtomatlashtirildi (Blueprint kerak EMAS):
+
+- **CompanionGameMode** (GlobalDefaultGameMode) — o'yin boshlanishida sahnada
+  `CompanionDirector` bo'lmasa o'zi spawn qiladi; pawn — ko'rinmas SpectatorPawn.
+- **CompanionDirector** — BeginPlay'da:
+  - poller hodisalarini C++ delegate'lar bilan ulaydi
+    (`avatar.play → LipSync.StartJob+StartPlayback`,
+    `avatar.interrupt → StopJob`, `avatar.state → SetCompanionState`);
+  - sahnadan nomida "MetaHuman" bor aktyorni topib unga **CompanionLipSync**
+    komponentini runtime'da qo'shadi;
+  - ko'rinishni birinchi CineCameraActor'ga o'tkazadi (retry bilan) —
+    Pixel Streaming shu kadrni oqimlaydi.
+- **CompanionBridgePoller** — BIE hodisalar yoniga BlueprintAssignable
+  delegate'lar qo'shildi (`OnPlayJobReceived` va h.k.); `PlayerUrl` sukut
+  `http://127.0.0.1:80`.
+- **Pixel Streaming 2** — `DefaultGame.ini`da `ConnectionURL=ws://127.0.0.1:8888`
+  (AutoStartStream sukutan yoqiq — launch-parametr shart emas).
+- **Skriptlar**: `scripts/dev/run_pixel_streaming_signalling.sh` (signalling
+  server clone+start), `scripts/dev/run_unreal_stream.sh` (UE'ni -game rejimida
+  stream bilan ochadi, `HEADLESS=1` — oynasiz).
+
+Qo'lda qolgan YAGONA GUI ish — **Face AnimBP'da Modify Curve** (7-bosqichga
+qarang): LipSync qiymatlarini MetaHuman yuz curve'lariga yozish. Usiz hamma
+narsa ishlaydi, faqat lablar qimirlamaydi.
+
+To'liq test tartibi (mock, kalitsiz ham ishlaydi):
+
+```bash
+# 1-terminal: signalling server (80 + 8888)
+scripts/dev/run_pixel_streaming_signalling.sh
+# 2-terminal: orchestrator (8765) + bridge (8770)
+python3 scripts/dev/run_stack.py
+# 3-terminal: UE stream (og'ir qadam — 8GB Mac'da 2-4 daqiqa yuklanadi)
+scripts/dev/run_unreal_stream.sh
+# Tekshir: brauzerda http://127.0.0.1:80 — MetaHuman ko'rinsin;
+# Electron/webdan matn yubor -> UE logida "Companion bridge event: avatar.play";
+curl 127.0.0.1:8770/avatar/status
+```
+
+---
+
 ## 0-bosqich. Talablar
 
 - **UE 5.5+** (5.6+ tavsiya — MetaHuman Creator endi editor ichida). O'rnatilgan ✅
@@ -117,18 +160,24 @@ C++ tomoni yozib qo'yilgan:
 - **UCompanionLipSync** komponenti — viseme+curves fuziyasi, koartikulyatsiya,
   mood 300ms lerp, prosodiya→qosh; hammasi renderer bilan bir xil qiymatlarda.
 
-Blueprint'da qilinadigan ish:
-1. MetaHuman aktyoriga `CompanionLipSync` komponentini qo'shing.
-2. `OnAvatarPlayJob` → `LipSync.StartJob(Visemes, MouthCurves, Mood)`;
-   audio haqiqatan boshlangan kadrda `LipSync.StartPlayback()`
-   (istasangiz sekundiga bir `SyncPlaybackTime(AudioComponent vaqti)`).
-3. `OnAvatarInterruptEvent` → `LipSync.StopJob()`;
-   `OnAvatarStateEvent` → `LipSync.SetCompanionState(State)`.
-4. Face AnimBP AnimGraph'ida **Modify Curve** tugunlari:
-   har ARKit curve uchun `LipSync.GetCurveValue("jawOpen")` va h.k.
-   (to'liq curve ro'yxati CompanionLipSync.h izohida).
-5. Bosh ta'kidlari: `GetSpeechEnergy()` → AnimBP'da boshning yengil
+1–3 qadamlar endi AVTOMATIK (CompanionDirector buni C++da qiladi: komponent
+qo'shish, StartJob/StartPlayback/StopJob/SetCompanionState ulash). Qo'lda
+faqat Face AnimBP qoladi:
+
+1. Content Browser'da MetaHuman'ning **Face_AnimBP**'sini oching
+   (Content/MetaHumans/NewMetaHumanCharacter/Face ichida).
+2. AnimGraph'da oxirgi tugundan (Output Pose'dan oldin) **Modify Curve**
+   tuguni qo'shing; unga kerakli curve'larni pin qiling — minimal to'plam:
+   `jawOpen, mouthClose, mouthFunnel, mouthPucker, mouthSmileLeft,
+   mouthSmileRight, mouthStretchLeft, mouthStretchRight, browInnerUp`
+   (to'lig'i CompanionLipSync.h izohida).
+3. Har pin uchun: Event Graph'da owner aktyordan
+   `Get Component By Class (CompanionLipSync)` olib saqlang, AnimGraph'da
+   `GetCurveValue("jawOpen")` natijasini tegishli pin'ga ulang
+   (Property Access bilan ham bo'ladi).
+4. Bosh ta'kidlari (ixtiyoriy): `GetSpeechEnergy()` → boshning yengil
    pitch/roll qo'shimchasi.
+5. Saqlang, kompilyatsiya qiling — lablar `avatar.play` kelganda qimirlaydi.
 
 ## 8-bosqich. Holatlar
 
