@@ -50,10 +50,34 @@ protected:
 
 private:
     FTimerHandle ViewTargetTimerHandle;
+    FTimerHandle FaceValidateTimerHandle;
     int32 ViewTargetAttempts = 0;
+    bool bFaceValidated = false;
+    TWeakObjectPtr<AActor> MetaHumanActor;
+
+    // Validatsiya oynasi: gapirish davomida yig'ilgan maksimumlar.
+    float ProbeOursMax = 0.f;
+    float ProbeTheirsMax = 0.f;
+    int32 ProbeTicks = 0;
 
     void AttachLipSyncToMetaHuman();
+
+    /**
+     * MetaHuman'ni ARKit/LiveLink rejimiga o'tkazadi: BP'dagi UseARKit/UseLiveLink
+     * bayroqlarini yoqib, Face mesh'ning anim klassini tayyor ABP_MH_LiveLink'ka
+     * almashtiradi. Shundan keyin LipSync push qilayotgan "LLink_Face_Subj"
+     * subject'i yuz rigini boshqaradi — AnimBP'da qo'lda ish YO'Q.
+     */
+    void EnableArkitFaceMode(AActor* Actor);
+
     void TrySetViewTarget();
+
+    /**
+     * Gapirish boshlangach 1.5s o'tib Face AnimBP curve'ni LipSync qiymati
+     * bilan solishtiradi: AnimBP 0 qaytarsa — Modify Curve hali ulanmagan
+     * (docs/FACE_ANIMBP_STEPS.md), logda aniq ogohlantirish chiqadi.
+     */
+    void ValidateFaceCurves();
 
     UFUNCTION()
     void HandlePlayJob(

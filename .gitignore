@@ -46,3 +46,6 @@ nohup.out
 
 # Epic Pixel Streaming infra (signalling server clone, generatsiya qilinadi)
 unreal/PixelStreamingInfrastructure/
+
+# Unreal Tools natija fayllari (generatsiya qilinadi)
+unreal/CompanionAvatar/Tools/*_result.txt

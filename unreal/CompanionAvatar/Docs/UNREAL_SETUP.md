@@ -50,9 +50,21 @@ C++/config bilan avtomatlashtirildi (Blueprint kerak EMAS):
   server clone+start), `scripts/dev/run_unreal_stream.sh` (UE'ni -game rejimida
   stream bilan ochadi, `HEADLESS=1` — oynasiz).
 
-Qo'lda qolgan YAGONA GUI ish — **Face AnimBP'da Modify Curve** (7-bosqichga
-qarang): LipSync qiymatlarini MetaHuman yuz curve'lariga yozish. Usiz hamma
-narsa ishlaydi, faqat lablar qimirlamaydi.
+**2026-07-08:** Yuz lab-sinxroni ham AVTOMATLASHTIRILDI — qo'lda GUI qadam
+QOLMADI. Jonli tasdiqlangan (mock, headless -game): logda
+`Yuz curve oqimi OK (jawOpen lipsync=0.47, anim=0.28)`.
+Bitta buyruq bilan hammasi: `scripts/dev/run_full_stack.sh`
+(UE'siz yengil variant: `NO_UNREAL=1 ...`). UE 5.8 Creator'da yig'ilgan MetaHuman'da tahrirlanadigan Face_AnimBP
+yo'q ekan; buning o'rniga LipSync curve'lari **LiveLink** subject
+(`LLink_Face_Subj`) sifatida push qilinadi va MetaHuman'ning tayyor
+`ABP_MH_LiveLink` + ARKit PoseAsset zanjiri yuzni harakatlantiradi
+(Director UseARKit rejimini o'zi yoqadi). Tafsilot: docs/FACE_ANIMBP_STEPS.md.
+Tekshiruv: `python3 unreal/CompanionAvatar/Tools/verify_face_curves.py` (statik)
+va o'yin logida "Yuz curve oqimi OK" (runtime, avtomatik).
+
+Sahna ham skript bilan kafolatlanadi (idempotent):
+`Tools/build_stage.py` — headless `UnrealEditor-Cmd ... -run=pythonscript`
+bilan 5 aktyorni tekshiradi/tiklaydi, natija `Tools/build_stage_result.txt`da.
 
 To'liq test tartibi (mock, kalitsiz ham ishlaydi):
 
@@ -153,7 +165,11 @@ PCM 16-bit mono 24kHz WAV — atayin shunday qilingan):
   (EVENT_CONTRACT.md dagi format).
 - `avatar.interrupt` kelsa — 200 ms ichida to'xtatish (fade 100ms).
 
-## 7-bosqich. Lab-sinxron (ARKit curves) — KOD TAYYOR ✅
+## 7-bosqich. Lab-sinxron (ARKit curves) — TO'LIQ AVTOMATIK ✅
+
+> 2026-07-08: quyidagi Blueprint qadamlar ESKIRGAN — LiveLink yo'li ularni
+> almashtirdi (docs/FACE_ANIMBP_STEPS.md). Getterlar (GetJawOpen...) istalgan
+> qo'lda BP ishlash uchun saqlab qolindi, lekin majburiy emas.
 
 C++ tomoni yozib qo'yilgan:
 - `OnAvatarPlayJob` (poller) — viseme massivi + mouth_curves bilan keladi.

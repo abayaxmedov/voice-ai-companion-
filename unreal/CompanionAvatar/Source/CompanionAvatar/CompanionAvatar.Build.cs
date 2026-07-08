@@ -13,6 +13,7 @@ public class CompanionAvatar : ModuleRules
             "Engine",
             "InputCore",
             "CinematicCamera",
+            "LiveLinkInterface",
             "HTTP",
             "Json",
             "JsonUtilities"

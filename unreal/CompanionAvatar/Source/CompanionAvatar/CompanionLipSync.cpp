@@ -1,5 +1,12 @@
 #include "CompanionLipSync.h"
 
+#include "CompanionLiveLinkSource.h"
+#include "Features/IModularFeatures.h"
+#include "ILiveLinkClient.h"
+#include "LiveLinkTypes.h"
+#include "Roles/LiveLinkAnimationRole.h"
+#include "Roles/LiveLinkAnimationTypes.h"
+
 #include <initializer_list>
 
 namespace
@@ -33,6 +40,156 @@ void UCompanionLipSync::BeginPlay()
 {
     Super::BeginPlay();
     ResetCurves();
+    if (bPushLiveLink)
+    {
+        SetupLiveLink();
+    }
+}
+
+void UCompanionLipSync::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    TeardownLiveLink();
+    Super::EndPlay(EndPlayReason);
+}
+
+namespace
+{
+    // Evaluator hisoblaydigan barcha ARKit curve'lar + avto-pirpirash.
+    const TCHAR* GCompanionArkitCurves[] = {
+        TEXT("jawOpen"), TEXT("jawForward"), TEXT("mouthClose"),
+        TEXT("mouthFunnel"), TEXT("mouthPucker"),
+        TEXT("mouthSmileLeft"), TEXT("mouthSmileRight"),
+        TEXT("mouthStretchLeft"), TEXT("mouthStretchRight"),
+        TEXT("mouthPressLeft"), TEXT("mouthPressRight"),
+        TEXT("mouthShrugUpper"), TEXT("mouthShrugLower"),
+        TEXT("mouthLowerDownLeft"), TEXT("mouthLowerDownRight"),
+        TEXT("mouthUpperUpLeft"), TEXT("mouthUpperUpRight"),
+        TEXT("mouthDimpleLeft"), TEXT("mouthDimpleRight"),
+        TEXT("mouthFrownLeft"), TEXT("mouthFrownRight"),
+        TEXT("mouthRollUpper"), TEXT("mouthRollLower"), TEXT("mouthLeft"),
+        TEXT("browInnerUp"), TEXT("browDownLeft"), TEXT("browDownRight"),
+        TEXT("browOuterUpLeft"), TEXT("browOuterUpRight"),
+        TEXT("eyeSquintLeft"), TEXT("eyeSquintRight"),
+        TEXT("eyeWideLeft"), TEXT("eyeWideRight"),
+        TEXT("cheekSquintLeft"), TEXT("cheekSquintRight"),
+        TEXT("eyeBlinkLeft"), TEXT("eyeBlinkRight"),
+    };
+
+    FName CapitalizedCurveName(const FName& Source)
+    {
+        FString Text = Source.ToString();
+        if (!Text.IsEmpty())
+        {
+            Text[0] = FChar::ToUpper(Text[0]);
+        }
+        return FName(*Text);
+    }
+}
+
+void UCompanionLipSync::SetupLiveLink()
+{
+    if (!IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("CompanionLipSync: LiveLink mavjud emas (plugin o'chiqmi?) — yuz curve'lari push qilinmaydi"));
+        return;
+    }
+
+    LiveLinkClient = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+    LiveLinkSource = MakeShared<FCompanionLiveLinkSource>();
+    LiveLinkClient->AddSource(LiveLinkSource);
+
+    // Subject xossalari: MetaHuman ARKit PoseAsset'i CamelCase nomlarni kutadi
+    // (JawOpen, MouthSmileLeft, EyeBlinkLeft...); ehtiyot uchun lowercase
+    // asl nomlarni ham qo'shib yuboramiz — mos kelmagani shunchaki e'tibordan
+    // chetda qoladi.
+    LiveLinkPropertyNames.Reset();
+    LiveLinkValueSources.Reset();
+    for (const TCHAR* Curve : GCompanionArkitCurves)
+    {
+        const FName Source(Curve);
+        LiveLinkPropertyNames.Add(CapitalizedCurveName(Source));
+        LiveLinkValueSources.Add(Source);
+        LiveLinkPropertyNames.Add(Source);
+        LiveLinkValueSources.Add(Source);
+    }
+
+    // MetaHuman'ning AnimNode_LiveLinkPose tuguni Animation rolini kutadi
+    // (LiveLink Face ilovasi bilan bir xil): suyaklarsiz, faqat curve'lar.
+    FLiveLinkStaticDataStruct StaticData(FLiveLinkSkeletonStaticData::StaticStruct());
+    StaticData.Cast<FLiveLinkSkeletonStaticData>()->PropertyNames = LiveLinkPropertyNames;
+    const FLiveLinkSubjectKey SubjectKey(LiveLinkSource->GetSourceGuid(), LiveLinkSubjectName);
+    LiveLinkClient->PushSubjectStaticData_AnyThread(
+        SubjectKey, ULiveLinkAnimationRole::StaticClass(), MoveTemp(StaticData));
+
+    UE_LOG(LogTemp, Log, TEXT("CompanionLipSync: LiveLink subject '%s' ro'yxatga olindi (%d xossa)"),
+        *LiveLinkSubjectName.ToString(), LiveLinkPropertyNames.Num());
+}
+
+void UCompanionLipSync::TeardownLiveLink()
+{
+    if (LiveLinkClient && LiveLinkSource.IsValid())
+    {
+        LiveLinkClient->RemoveSource(LiveLinkSource);
+    }
+    LiveLinkSource.Reset();
+    LiveLinkClient = nullptr;
+}
+
+void UCompanionLipSync::PushLiveLinkFrame()
+{
+    if (!LiveLinkClient || !LiveLinkSource.IsValid())
+    {
+        return;
+    }
+
+    FLiveLinkFrameDataStruct Frame(FLiveLinkAnimationFrameData::StaticStruct());
+    FLiveLinkAnimationFrameData* Data = Frame.Cast<FLiveLinkAnimationFrameData>();
+    Data->WorldTime = FLiveLinkWorldTime();
+    Data->PropertyValues.Reserve(LiveLinkValueSources.Num());
+    for (const FName& Source : LiveLinkValueSources)
+    {
+        Data->PropertyValues.Add(GetCurveValue(Source));
+    }
+
+    const FLiveLinkSubjectKey SubjectKey(LiveLinkSource->GetSourceGuid(), LiveLinkSubjectName);
+    LiveLinkClient->PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(Frame));
+}
+
+void UCompanionLipSync::ApplyAutoBlink(float DeltaTime)
+{
+    if (!bAutoBlink)
+    {
+        return;
+    }
+
+    if (BlinkPhase < 0.f)
+    {
+        BlinkCooldown -= DeltaTime;
+        if (BlinkCooldown <= 0.f)
+        {
+            BlinkPhase = 0.f;
+        }
+    }
+    else
+    {
+        BlinkPhase += DeltaTime / 0.14f; // to'liq pirpirash ~140ms
+        if (BlinkPhase >= 1.f)
+        {
+            BlinkPhase = -1.f;
+            BlinkCooldown = FMath::FRandRange(2.2f, 5.5f);
+        }
+    }
+
+    if (BlinkPhase >= 0.f)
+    {
+        // 0->1->0 uchburchak, silliqlangan.
+        const float Blink = Smoothstep(1.f - FMath::Abs(BlinkPhase * 2.f - 1.f));
+        float& Left = CurveValues.FindOrAdd(FName("eyeBlinkLeft"));
+        float& Right = CurveValues.FindOrAdd(FName("eyeBlinkRight"));
+        Left = FMath::Max(Left, Blink);
+        Right = FMath::Max(Right, Blink);
+    }
 }
 
 // avatar3d.js VISEME_SHAPES bilan bir xil qiymatlar (ARKit nomlari).
@@ -381,9 +538,13 @@ void UCompanionLipSync::TickComponent(
         SmoothedEnergy = FMath::Max(0.f, SmoothedEnergy - DeltaTime * 2.f);
     }
 
+    ApplyAutoBlink(DeltaTime);
+
     // Yakuniy clamp.
     for (TPair<FName, float>& Pair : CurveValues)
     {
         Pair.Value = FMath::Clamp(Pair.Value, 0.f, 1.f);
     }
+
+    PushLiveLinkFrame();
 }

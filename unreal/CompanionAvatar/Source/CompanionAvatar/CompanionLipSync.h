@@ -42,6 +42,22 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion LipSync")
     float SpeakingMouthMoodScale = 0.4f;
 
+    /**
+     * Curve'larni LiveLink subject sifatida push qilish — MetaHuman'ning
+     * tayyor ABP_MH_LiveLink yuz rigi (UseARKit rejimi) shuni o'qiydi,
+     * AnimBP'da qo'lda Modify Curve ulash shart bo'lmaydi.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion LipSync|LiveLink")
+    bool bPushLiveLink = true;
+
+    /** BP_NewMetaHumanCharacter'dagi standart subject nomi. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion LipSync|LiveLink")
+    FName LiveLinkSubjectName = TEXT("LLink_Face_Subj");
+
+    /** Tabiiylik uchun avtomatik ko'z pirpirashi (eyeBlinkLeft/Right). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion LipSync")
+    bool bAutoBlink = true;
+
     UFUNCTION(BlueprintCallable, Category="Companion LipSync")
     void StartJob(
         const TArray<FCompanionVisemeFrame>& Visemes,
@@ -82,8 +98,31 @@ public:
     UFUNCTION(BlueprintPure, Category="Companion LipSync")
     float GetPitch() const { return LastPitch; }
 
+    // --- AnimBP qulayligi: har bir ARKit curve uchun alohida getter. ---
+    // Face AnimBP'da Modify Curve pinini Property Access bilan to'g'ridan-to'g'ri
+    // shu getterlarga ulash mumkin (o'zgaruvchi/Set tugunlari shart emas).
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetJawOpen() const { return GetCurveValue(TEXT("jawOpen")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthClose() const { return GetCurveValue(TEXT("mouthClose")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthFunnel() const { return GetCurveValue(TEXT("mouthFunnel")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthPucker() const { return GetCurveValue(TEXT("mouthPucker")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthSmileLeft() const { return GetCurveValue(TEXT("mouthSmileLeft")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthSmileRight() const { return GetCurveValue(TEXT("mouthSmileRight")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthStretchLeft() const { return GetCurveValue(TEXT("mouthStretchLeft")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetMouthStretchRight() const { return GetCurveValue(TEXT("mouthStretchRight")); }
+    UFUNCTION(BlueprintPure, Category="Companion LipSync|Curves")
+    float GetBrowInnerUp() const { return GetCurveValue(TEXT("browInnerUp")); }
+
 protected:
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void TickComponent(
         float DeltaTime,
         ELevelTick TickType,
@@ -111,6 +150,22 @@ private:
     TMap<FName, float> CurveValues;
     float SmoothedEnergy = 0.f;
     float LastPitch = 0.5f;
+
+    // Avto-pirpirash holati.
+    float BlinkCooldown = 1.5f;
+    float BlinkPhase = -1.f; // <0: pirpirash yo'q; 0..1: jarayonda
+
+    // LiveLink.
+    TSharedPtr<class FCompanionLiveLinkSource> LiveLinkSource;
+    class ILiveLinkClient* LiveLinkClient = nullptr;
+    // Subject property nomi -> bizning curve nomi (CamelCase va lowercase juftlari).
+    TArray<FName> LiveLinkPropertyNames;
+    TArray<FName> LiveLinkValueSources;
+
+    void SetupLiveLink();
+    void TeardownLiveLink();
+    void PushLiveLinkFrame();
+    void ApplyAutoBlink(float DeltaTime);
 
     void ResetCurves();
     void AddShape(const TArray<TPair<FName, float>>* Shape, float Multiplier, float MouthScale);

@@ -34,3 +34,14 @@ our own `VoiceAnalysisResult`.
 Uzbek language support is not assumed from any vendor. STT, LLM output, TTS, and
 voice analysis must pass project-specific Uzbek tests before release.
 
+
+## AD-007: MetaHuman Face Animation via LiveLink (2026-07-08)
+
+The assembled UE 5.8 MetaHuman has no editable main Face AnimBP (the facial rig
+lives in a fixed post-process ABP). Manual "Modify Curve" wiring is therefore
+not viable. The face is driven through the shipped ARKit path instead:
+`UCompanionLipSync` pushes ARKit curves as an in-process LiveLink subject
+(`LLink_Face_Subj`), and `ACompanionDirector` enables `UseARKit` and swaps the
+Face mesh to the stock `ABP_MH_LiveLink`. No Blueprint/AnimGraph editing is
+required or allowed for lip-sync; runtime validation logs
+"Yuz curve oqimi OK" after the first playback.

@@ -54,14 +54,15 @@ def main() -> int:
 
 
 def get(url: str) -> dict[str, Any]:
-    with urlopen(url, timeout=2.5) as response:
+    with urlopen(url, timeout=10.0) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def post(url: str, payload: dict[str, Any]) -> dict[str, Any]:
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
-    with urlopen(request, timeout=2.5) as response:
+    # Real TTS/LLM provayderlar bilan turn 2.5s dan uzoq davom etadi.
+    with urlopen(request, timeout=45.0) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
