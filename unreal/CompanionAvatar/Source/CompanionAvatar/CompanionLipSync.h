@@ -106,6 +106,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
     float HeadDegPerUnit = 14.0f;
 
+    /** Bosh burilishining maksimal chegarasi (gradus) — biaslar stacklanganda flop bo'lmasin. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float HeadMaxDeg = 6.0f;
+
     UFUNCTION(BlueprintPure, Category="Companion Idle")
     float GetHeadYaw() const { return HeadYawDeg; }
     UFUNCTION(BlueprintPure, Category="Companion Idle")

@@ -45,3 +45,18 @@ not viable. The face is driven through the shipped ARKit path instead:
 Face mesh to the stock `ABP_MH_LiveLink`. No Blueprint/AnimGraph editing is
 required or allowed for lip-sync; runtime validation logs
 "Yuz curve oqimi OK" after the first playback.
+
+## AD-008: Avatar Idle "Liveliness" via Face LiveLink Channel (2026-07-10)
+
+The MetaHuman must look alive when not speaking (Unclaw/Grace style). All idle
+motion — eye gaze (saccade + drift), head sway, micro-expression, natural blink,
+and breathing — is generated procedurally in C++ (`UCompanionLipSync`) and sent
+through the SAME LiveLink face subject as lip-sync (`LLink_Face_Subj`). No
+separate subject, no Blueprint/AnimGraph edits. Key measured findings:
+(1) the ABP scales HeadYaw/Pitch/Roll ~14x, so real degrees are divided by
+`HeadDegPerUnit` before sending; (2) HeadTranslation is not consumed by the ABP,
+so breathing is approximated with a slow head-pitch bob (chest/shoulder breathing
+would require editing the body ABP, out of scope); (3) `LLink_Face_Head` is a
+bool gate, not a subject. All behaviors are headless-measurable
+(`Tools/verify_idle_life.py`, Director "Idle tiriklik OK" log). Amplitudes are
+tunable UPROPERTYs; see docs/AVATAR_IDLE_LIFE.md.

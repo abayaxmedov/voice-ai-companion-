@@ -498,8 +498,11 @@ void ACompanionDirector::ValidateIdleLife()
             TEXT("CompanionDirector: bosh gradusi generatsiya qilinyapti-yu, bosh suyagi "
                  "qimirlamayapti — HeadYaw/Pitch/Roll ABP'ga yetmayapti (gate/subject)"));
     }
-    else if (IdleHeadBoneMax > 15.f)
+    else if (IdleHeadBoneMax > 55.f)
     {
+        // Diqqat: 'head' suyagining 90° rest-orientatsiyasi tufayli forward-vektor
+        // metrikasi haqiqiy burilishni ~6x kuchaytiradi (4.6° komanda ~30° o'qiladi),
+        // shuning uchun chegara yuqori — faqat haqiqiy "flop"ni ushlaydi.
         UE_LOG(LogTemp, Warning,
             TEXT("CompanionDirector: bosh suyagi og'ishi juda katta (%.1f°) — HeadDegPerUnit "
                  "masshtabi noto'g'ri bo'lishi mumkin (bosh haddan tashqari chayqalyapti)"),
@@ -512,6 +515,8 @@ void ACompanionDirector::HandleState(const FString& State)
     if (LipSync)
     {
         LipSync->SetCompanionState(State);
+        UE_LOG(LogTemp, Log, TEXT("CompanionDirector: holat -> %s (nigoh+bosh+pirpirash moslashadi)"),
+            *State);
     }
 }
 

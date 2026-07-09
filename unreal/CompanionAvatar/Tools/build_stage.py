@@ -27,15 +27,27 @@ METAHUMAN_BP = "/Game/MetaHumans/NewMetaHumanCharacter/BP_NewMetaHumanCharacter"
 
 # Spetsifikatsiya (docs/UE_HANDOFF_PROMPT.md dagi qiymatlar).
 CAMERA_LOC = unreal.Vector(220.0, 0.0, 145.0)
-CAMERA_ROT = unreal.Rotator(0.0, 0.0, 180.0)  # roll, pitch, yaw
 CAMERA_FOCAL = 35.0
-DIRLIGHT_LUX = 40.0
+# Kamera qaraydigan nuqta (personaj boshi, dunyo koordinatalarida).
+HEAD_TARGET = unreal.Vector(0.0, 0.0, 150.0)
+# Personajni kameraga qaratish uchun aktyor yaw'i. Agar RE-RUN'dan keyin
+# ORQA tomon/ensa ko'rinsa — bu qiymatni +90.0 ga o'zgartiring (mesh forward
+# ±Y bo'lgani uchun 90° burish kerak; sukut -90 bilan boshlanadi).
+CHAR_FACE_YAW = -90.0
+# Asosiy (key) nur: ilgari 40 lux + yo'nalishsiz edi → yuz orqasi yoritilardi.
+# Endi kamera tomonidan, tepadan tushadi va yuzni ochib beradi.
+DIRLIGHT_LUX = 180.0
+DIRLIGHT_PITCH = -35.0   # tepadan pastga
+DIRLIGHT_YAW_OFFSET = -20.0  # kamera yaw'iga nisbatan shakl beruvchi burilish
+SKYLIGHT_FILL = 1.5      # soyali tomon qop-qora bo'lmasligi uchun yumshoq to'ldirish
 RIM_LOC = unreal.Vector(-90.0, 35.0, 175.0)
 RIM_CANDELAS = 60.0
 RIM_COLOR = unreal.Color(r=255, g=59, b=64, a=255)  # ~ (1.0, 0.23, 0.25)
 
 changed = False
 failed = False
+# ensure_camera() hisoblaydi, ensure_directional() key nurni shunga qarab yo'naltiradi.
+CAM_YAW = 180.0
 
 
 def report(status: str, message: str) -> None:
@@ -99,10 +111,11 @@ def ensure_transform(actor: unreal.Actor, loc: unreal.Vector, rot: unreal.Rotato
 
 
 def ensure_metahuman() -> None:
+    face_rot = unreal.Rotator(roll=0.0, pitch=0.0, yaw=CHAR_FACE_YAW)
     existing = [a for a in all_actors() if "MetaHuman" in a.get_name()
                 and a.get_component_by_class(unreal.SkeletalMeshComponent)]
     if existing:
-        ensure_transform(existing[0], unreal.Vector(0, 0, 0), None, "MetaHuman")
+        ensure_transform(existing[0], unreal.Vector(0, 0, 0), face_rot, "MetaHuman")
         report("OK", f"MetaHuman bor: {existing[0].get_name()}")
         return
     bp_class = unreal.EditorAssetLibrary.load_blueprint_class(METAHUMAN_BP)
@@ -111,23 +124,28 @@ def ensure_metahuman() -> None:
         global failed
         failed = True
         return
-    spawn(bp_class)
-    mark_fixed("MetaHuman (0,0,0) ga spawn qilindi")
+    spawn(bp_class, unreal.Vector(0, 0, 0), face_rot)
+    mark_fixed(f"MetaHuman (0,0,0), kameraga qaragan (yaw={CHAR_FACE_YAW}) spawn qilindi")
 
 
 def ensure_camera() -> None:
+    global CAM_YAW
+    # Boshga aniq qaraydigan burilishni hisoblaymiz (pozitsion Rotator xatosidan
+    # xoli — find_look_at_rotation to'g'ri Rotator qaytaradi).
+    cam_rot = unreal.MathLibrary.find_look_at_rotation(CAMERA_LOC, HEAD_TARGET)
+    CAM_YAW = cam_rot.yaw
     cams = find_by_class(unreal.CineCameraActor)
     if not cams:
-        cam = spawn(unreal.CineCameraActor, CAMERA_LOC, CAMERA_ROT)
-        mark_fixed("CineCameraActor yaratildi")
+        cam = spawn(unreal.CineCameraActor, CAMERA_LOC, cam_rot)
+        mark_fixed("CineCameraActor yaratildi (boshga look-at)")
     else:
         cam = cams[0]
-        ensure_transform(cam, CAMERA_LOC, CAMERA_ROT, "CineCamera")
+        ensure_transform(cam, CAMERA_LOC, cam_rot, "CineCamera")
     comp = cam.get_cine_camera_component()
     if not nearly(comp.get_editor_property("current_focal_length"), CAMERA_FOCAL, 0.1):
         comp.set_editor_property("current_focal_length", CAMERA_FOCAL)
         mark_fixed(f"Focal length {CAMERA_FOCAL}mm qilindi")
-    report("OK", "CineCamera spetsifikatsiyada")
+    report("OK", f"CineCamera boshga qaraydi (yaw={CAM_YAW:.0f})")
 
 
 def light_component(actor: unreal.Actor):
@@ -135,12 +153,21 @@ def light_component(actor: unreal.Actor):
 
 
 def ensure_directional() -> None:
+    # Nur kamera tomonidan (CAM_YAW), tepadan (DIRLIGHT_PITCH) tushsin —
+    # shunda kamera ko'radigan yuz tomoni yoritiladi.
+    key_rot = unreal.Rotator(
+        roll=0.0, pitch=DIRLIGHT_PITCH, yaw=CAM_YAW + DIRLIGHT_YAW_OFFSET
+    )
     lights = find_by_class(unreal.DirectionalLight)
     if not lights:
-        light = spawn(unreal.DirectionalLight, unreal.Vector(0, 0, 300))
-        mark_fixed("DirectionalLight yaratildi")
+        light = spawn(unreal.DirectionalLight, unreal.Vector(0, 0, 300), key_rot)
+        mark_fixed("DirectionalLight yaratildi (yuzga yo'naltirilgan)")
     else:
         light = lights[0]
+        cur = light.get_actor_rotation()
+        if not (nearly(cur.yaw, key_rot.yaw, 1.0) and nearly(cur.pitch, key_rot.pitch, 1.0)):
+            light.set_actor_rotation(key_rot, False)
+            mark_fixed(f"DirectionalLight yo'nalishi yuzga qaratildi (yaw={key_rot.yaw:.0f}, pitch={DIRLIGHT_PITCH})")
     comp = light_component(light)
     if not nearly(comp.get_editor_property("intensity"), DIRLIGHT_LUX, 0.5):
         comp.set_editor_property("intensity", DIRLIGHT_LUX)
@@ -149,11 +176,17 @@ def ensure_directional() -> None:
 
 
 def ensure_skylight() -> None:
-    if find_by_class(unreal.SkyLight):
-        report("OK", "SkyLight bor")
-        return
-    spawn(unreal.SkyLight, unreal.Vector(0, 0, 400))
-    mark_fixed("SkyLight yaratildi")
+    lights = find_by_class(unreal.SkyLight)
+    if not lights:
+        light = spawn(unreal.SkyLight, unreal.Vector(0, 0, 400))
+        mark_fixed("SkyLight yaratildi")
+    else:
+        light = lights[0]
+    comp = light_component(light)
+    if comp is not None and not nearly(comp.get_editor_property("intensity"), SKYLIGHT_FILL, 0.05):
+        comp.set_editor_property("intensity", SKYLIGHT_FILL)
+        mark_fixed(f"SkyLight to'ldirish {SKYLIGHT_FILL} qilindi")
+    report("OK", "SkyLight spetsifikatsiyada")
 
 
 def ensure_rim() -> None:

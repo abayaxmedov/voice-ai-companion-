@@ -29,6 +29,11 @@ ARKit blendshape'larni tushunadi — mapping deyarli 1:1.
 
 ## HOLAT (2026-07-07): nima avtomatik, nima qo'lda
 
+> 2026-07-10 qo'shimcha: avatar "tiriklik" (idle) qo'shildi — ko'z nigohi, bosh
+> harakati, mikro-mimika, nafas, holat o'tishlari (hammasi C++da, yuz LiveLink
+> kanali orqali). Tafsilot va sozlash: **docs/AVATAR_IDLE_LIFE.md**. Tekshiruv:
+> `python3 unreal/CompanionAvatar/Tools/verify_idle_life.py`.
+
 C++/config bilan avtomatlashtirildi (Blueprint kerak EMAS):
 
 - **CompanionGameMode** (GlobalDefaultGameMode) — o'yin boshlanishida sahnada

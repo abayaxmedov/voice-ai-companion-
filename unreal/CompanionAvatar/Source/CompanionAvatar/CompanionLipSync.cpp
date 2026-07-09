@@ -378,6 +378,11 @@ void UCompanionLipSync::ApplyIdleHead(float DeltaTime)
         Pitch -= 2.5f;
     }
 
+    // Biaslar ustma-ust tushsa ham "flop" bo'lmasin — har o'qni xavfsiz cheklaymiz.
+    Yaw = FMath::Clamp(Yaw, -HeadMaxDeg, HeadMaxDeg);
+    Pitch = FMath::Clamp(Pitch, -HeadMaxDeg, HeadMaxDeg);
+    Roll = FMath::Clamp(Roll, -HeadMaxDeg, HeadMaxDeg);
+
     // Silliqlash — sakramasin (signal allaqachon silliq, kam lag yetadi).
     // Bu yerda HeadYawDeg/... HAQIQIY gradus (push'da HeadDegPerUnit'ga bo'linadi).
     const float S = FMath::Min(1.f, DeltaTime * 7.f);

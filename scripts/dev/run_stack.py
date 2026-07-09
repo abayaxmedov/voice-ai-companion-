@@ -43,14 +43,9 @@ def main() -> int:
             "--port",
             str(args.orchestrator_port),
         ],
-        [
-            sys.executable,
-            str(ROOT / "scripts" / "dev" / "run_frontend.py"),
-            "--host",
-            args.host,
-            "--port",
-            str(args.frontend_port),
-        ],
+        # Eslatma: alohida frontend server (run_frontend.py, 5173) OLIB TASHLANDI —
+        # orchestrator (8765) renderer'ni o'zi statik beradi. Ilgari 5173 port
+        # to'qnashuvi butun stackni (bridge + orchestrator) o'ldirardi.
     ]
 
     processes: list[subprocess.Popen[bytes]] = []
