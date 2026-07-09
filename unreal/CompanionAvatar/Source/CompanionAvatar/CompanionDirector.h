@@ -51,9 +51,19 @@ protected:
 private:
     FTimerHandle ViewTargetTimerHandle;
     FTimerHandle FaceValidateTimerHandle;
+    FTimerHandle IdleLifeTimerHandle;
     int32 ViewTargetAttempts = 0;
     bool bFaceValidated = false;
     TWeakObjectPtr<AActor> MetaHumanActor;
+    TWeakObjectPtr<USkeletalMeshComponent> FaceMesh;
+
+    // Idle tiriklik validatsiyasi (nigoh + bosh suyagi rotatsiyasi o'lchanadi).
+    int32 IdleProbeTicks = 0;
+    float IdleGazeMax = 0.f;
+    float IdleHeadSubjMax = 0.f;   // LipSync generatsiya qilgan gradus (biz)
+    float IdleHeadBoneMax = 0.f;   // Face 'head' suyagi haqiqiy og'ishi (ABP natijasi)
+    bool bIdleHeadBaselineSet = false;
+    FQuat IdleHeadBaseline = FQuat::Identity;
 
     // Validatsiya oynasi: gapirish davomida yig'ilgan maksimumlar.
     float ProbeOursMax = 0.f;
@@ -81,6 +91,14 @@ private:
      * (docs/FACE_ANIMBP_STEPS.md), logda aniq ogohlantirish chiqadi.
      */
     void ValidateFaceCurves();
+
+    /**
+     * Idle "tiriklik" tekshiruvi: bir necha soniya davomida nigoh curve'lari,
+     * saccade soni, LipSync bosh gradusi va Face 'head' suyagining haqiqiy
+     * og'ishini o'lchab, "Idle tiriklik OK (...)" yoki muammoni logga yozadi.
+     * Suyak og'ishi nol bo'lsa — HeadYaw/Pitch/Roll ABP'ga yetmayapti.
+     */
+    void ValidateIdleLife();
 
     UFUNCTION()
     void HandlePlayJob(

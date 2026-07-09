@@ -43,6 +43,30 @@ def dump_graph(bp, graph_name: str) -> None:
             out(f"    node o'qilmadi: {exc}")
 
 
+def dump_variables(bp) -> None:
+    """CDO ustidan yuqori-daraja o'zgaruvchilarni sanaymiz — bosh subjecti,
+    HeadControlSwitch kabi gate bool'larini topish uchun."""
+    gen = bp.generated_class()
+    if not gen:
+        out("  generated_class YO'Q")
+        return
+    cdo = unreal.get_default_object(gen)
+    for prop_name in ("HeadControlSwitch", "UseHeadRotation", "ARKitHeadRotation"):
+        try:
+            val = cdo.get_editor_property(prop_name)
+            out(f"  bool? {prop_name} = {val}")
+        except Exception:  # noqa: BLE001
+            pass
+    # FLiveLinkSubjectName tipidagi o'zgaruvchilar (nomi bo'yicha sinab ko'ramiz).
+    for prop_name in ("LLink_Face_Subj", "LLink_Face_Head", "SubjectName",
+                      "HeadSubjectName", "FaceSubjectName"):
+        try:
+            val = cdo.get_editor_property(prop_name)
+            out(f"  subject? {prop_name} = {val}")
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def main() -> None:
     for path in (
         "/Game/MetaHumans/Common/Animation/ABP_MH_LiveLink",
@@ -53,6 +77,7 @@ def main() -> None:
         if not bp:
             out("  yuklanmadi!")
             continue
+        dump_variables(bp)
         # Barcha graflarni sanab chiqamiz.
         try:
             graphs = unreal.BlueprintEditorLibrary.list_graphs(bp)

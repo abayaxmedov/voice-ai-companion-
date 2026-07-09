@@ -40,6 +40,9 @@ void UCompanionLipSync::BeginPlay()
 {
     Super::BeginPlay();
     ResetCurves();
+    // Har instansiya uchun boshqacha noise fazasi — mexanik takror bo'lmasin.
+    NoiseSeed = FMath::FRandRange(0.f, 1000.f);
+    GazeTimer = FMath::FRandRange(0.4f, 1.6f);
     if (bPushLiveLink)
     {
         SetupLiveLink();
@@ -73,8 +76,17 @@ namespace
         TEXT("eyeWideLeft"), TEXT("eyeWideRight"),
         TEXT("cheekSquintLeft"), TEXT("cheekSquintRight"),
         TEXT("eyeBlinkLeft"), TEXT("eyeBlinkRight"),
+        // Ko'z nigohi (idle saccade + drift).
+        TEXT("eyeLookInLeft"), TEXT("eyeLookInRight"),
+        TEXT("eyeLookOutLeft"), TEXT("eyeLookOutRight"),
+        TEXT("eyeLookUpLeft"), TEXT("eyeLookUpRight"),
+        TEXT("eyeLookDownLeft"), TEXT("eyeLookDownRight"),
     };
 
+    // Bosh rotatsiyasi (gradus) — clamp'siz, alohida yo'l bilan uzatiladi.
+    const TCHAR* GCompanionHeadProps[] = {
+        TEXT("HeadYaw"), TEXT("HeadPitch"), TEXT("HeadRoll"),
+    };
 }
 
 void UCompanionLipSync::SetupLiveLink()
@@ -97,6 +109,12 @@ void UCompanionLipSync::SetupLiveLink()
     for (const TCHAR* Curve : GCompanionArkitCurves)
     {
         LiveLinkPropertyNames.Add(FName(Curve));
+    }
+    // Bosh xossalari ro'yxat oxirida — ABP ularni BasicRole bilan o'qiydi
+    // (yuz curve'lari uchun esa Animation role). Qiymatlari gradusda.
+    for (const TCHAR* Head : GCompanionHeadProps)
+    {
+        LiveLinkPropertyNames.Add(FName(Head));
     }
 
     // MetaHuman'ning AnimNode_LiveLinkPose tuguni Animation rolini kutadi
@@ -141,7 +159,14 @@ void UCompanionLipSync::PushLiveLinkFrame()
     Data->PropertyValues.Reserve(LiveLinkPropertyNames.Num());
     for (const FName& Source : LiveLinkPropertyNames)
     {
-        Data->PropertyValues.Add(GetCurveValue(Source));
+        // Bosh: HeadYawDeg... haqiqiy gradusda; ABP ~HeadDegPerUnit barobar
+        // kuchaytiradi (o'lchangan: 1 birlik ≈ 14°), shuning uchun bo'lib beramiz.
+        // Bu qiymatlar [0,1] clamp'ga tushmaydi.
+        const float Scale = FMath::Max(0.01f, HeadDegPerUnit);
+        if (Source == TEXT("HeadYaw")) { Data->PropertyValues.Add(HeadYawDeg / Scale); }
+        else if (Source == TEXT("HeadPitch")) { Data->PropertyValues.Add(HeadPitchDeg / Scale); }
+        else if (Source == TEXT("HeadRoll")) { Data->PropertyValues.Add(HeadRollDeg / Scale); }
+        else { Data->PropertyValues.Add(GetCurveValue(Source)); }
     }
 
     const FLiveLinkSubjectKey SubjectKey(LiveLinkSource->GetSourceGuid(), LiveLinkSubjectName);
@@ -169,7 +194,23 @@ void UCompanionLipSync::ApplyAutoBlink(float DeltaTime)
         if (BlinkPhase >= 1.f)
         {
             BlinkPhase = -1.f;
-            BlinkCooldown = FMath::FRandRange(2.2f, 5.5f);
+            if (BlinkBurstLeft > 0)
+            {
+                --BlinkBurstLeft;
+                BlinkCooldown = 0.09f; // qo'sh pirpirash: juda qisqa tanaffus
+            }
+            else
+            {
+                // Gapirganda odam tez-tez pirpiraydi; idle'da kamroq.
+                const float Base = bJobActive ? 1.6f : 2.6f;
+                const float Span = bJobActive ? 2.2f : 3.8f;
+                BlinkCooldown = FMath::FRandRange(Base, Base + Span);
+                // Vaqti-vaqti bilan qo'sh pirpirash (tabiiy).
+                if (FMath::FRand() < 0.22f)
+                {
+                    BlinkBurstLeft = 1;
+                }
+            }
         }
     }
 
@@ -184,6 +225,132 @@ void UCompanionLipSync::ApplyAutoBlink(float DeltaTime)
         Left = FMath::Max(Left, Blink);
         Right = FMath::Max(Right, Blink);
     }
+}
+
+void UCompanionLipSync::ApplyIdleGaze(float DeltaTime)
+{
+    if (!bEnableIdleGaze)
+    {
+        return;
+    }
+
+    // Gapirganda odam ko'proq markazga qaraydi — diapazon siqiladi.
+    const float RangeScale = bJobActive ? SpeakingGazeScale : 1.f;
+
+    GazeTimer -= DeltaTime;
+    if (GazeTimer <= 0.f)
+    {
+        ++SaccadeCount;
+        if (FMath::FRand() < 0.3f)
+        {
+            GazeTarget = FVector2D::ZeroVector; // kameraga (markaz) qarash
+        }
+        else
+        {
+            GazeTarget.X = FMath::FRandRange(-1.f, 1.f);
+            GazeTarget.Y = FMath::FRandRange(-0.7f, 0.7f); // vertikal kamroq
+        }
+        // Katta saccade ko'pincha pirpirash bilan birga keladi (tabiiy).
+        if ((GazeTarget - GazeCurrent).Size() > 0.9f && BlinkPhase < 0.f && FMath::FRand() < 0.5f)
+        {
+            BlinkPhase = 0.f;
+        }
+        GazeTimer = FMath::FRandRange(0.8f, 3.0f);
+    }
+
+    // Saccade — tez ko'chish; drift esa chiqishda qo'shiladi.
+    GazeCurrent += (GazeTarget - GazeCurrent) * FMath::Min(1.f, DeltaTime * 12.f);
+
+    const float T = static_cast<float>(LifeClock);
+    const float DriftX = 0.06f * FMath::PerlinNoise1D(T * 0.3f + NoiseSeed);
+    const float DriftY = 0.05f * FMath::PerlinNoise1D(T * 0.27f + NoiseSeed + 11.f);
+    const float GX = FMath::Clamp(GazeCurrent.X + DriftX, -1.f, 1.f) * GazeAmplitude * RangeScale;
+    const float GY = FMath::Clamp(GazeCurrent.Y + DriftY, -1.f, 1.f) * GazeAmplitude * RangeScale;
+
+    // ARKit konvensiyasi: +X = personaj o'ngiga qaraydi (chap ko'z In, o'ng ko'z Out).
+    const float RightAmt = FMath::Max(0.f, GX);
+    const float LeftAmt = FMath::Max(0.f, -GX);
+    CurveValues.FindOrAdd(FName("eyeLookOutRight")) += RightAmt;
+    CurveValues.FindOrAdd(FName("eyeLookInLeft")) += RightAmt;
+    CurveValues.FindOrAdd(FName("eyeLookOutLeft")) += LeftAmt;
+    CurveValues.FindOrAdd(FName("eyeLookInRight")) += LeftAmt;
+    const float UpAmt = FMath::Max(0.f, GY);
+    const float DownAmt = FMath::Max(0.f, -GY);
+    CurveValues.FindOrAdd(FName("eyeLookUpLeft")) += UpAmt;
+    CurveValues.FindOrAdd(FName("eyeLookUpRight")) += UpAmt;
+    CurveValues.FindOrAdd(FName("eyeLookDownLeft")) += DownAmt;
+    CurveValues.FindOrAdd(FName("eyeLookDownRight")) += DownAmt;
+}
+
+void UCompanionLipSync::ApplyMicroExpression()
+{
+    if (!bEnableMicroExpression)
+    {
+        return;
+    }
+    // Gapirganda lab-sinxronga xalaqit qilmasligi uchun kuchi pasayadi.
+    const float Gain = MicroExpressionAmplitude * (bJobActive ? 0.3f : 1.f);
+    const float T = static_cast<float>(LifeClock);
+    const auto N = [&](float Freq, float Seed) -> float
+    {
+        return FMath::PerlinNoise1D(T * Freq + NoiseSeed + Seed);
+    };
+    CurveValues.FindOrAdd(FName("browInnerUp")) += Gain * (0.5f + 0.5f * N(0.13f, 0.f));
+    CurveValues.FindOrAdd(FName("browOuterUpLeft")) += Gain * 0.4f * FMath::Max(0.f, N(0.11f, 5.f));
+    CurveValues.FindOrAdd(FName("browOuterUpRight")) += Gain * 0.4f * FMath::Max(0.f, N(0.12f, 8.f));
+    CurveValues.FindOrAdd(FName("mouthSmileLeft")) += Gain * 0.6f * FMath::Max(0.f, N(0.09f, 15.f));
+    CurveValues.FindOrAdd(FName("mouthSmileRight")) += Gain * 0.6f * FMath::Max(0.f, N(0.1f, 18.f));
+    CurveValues.FindOrAdd(FName("cheekSquintLeft")) += Gain * 0.3f * FMath::Max(0.f, N(0.08f, 21.f));
+    CurveValues.FindOrAdd(FName("cheekSquintRight")) += Gain * 0.3f * FMath::Max(0.f, N(0.085f, 24.f));
+}
+
+void UCompanionLipSync::ApplyIdleHead(float DeltaTime)
+{
+    if (!bEnableIdleHead)
+    {
+        HeadYawDeg = HeadPitchDeg = HeadRollDeg = 0.f;
+        return;
+    }
+
+    const float T = static_cast<float>(LifeClock);
+    // Sekin, organik sway: ikki nomutanosib sinus (ishonchli amplituda) + mayda
+    // Perlin (mexanik takror bo'lmasin). Davr ~8-11s.
+    const auto Osc = [&](float Freq, float Phase) -> float
+    {
+        return 0.62f * FMath::Sin(T * Freq + NoiseSeed + Phase)
+             + 0.38f * FMath::PerlinNoise1D(T * Freq * 0.25f + NoiseSeed + Phase);
+    };
+    float Yaw = HeadAmplitudeDeg * Osc(0.55f, 0.f);
+    float Pitch = HeadAmplitudeDeg * 0.7f * Osc(0.47f, 30.f);
+    float Roll = HeadAmplitudeDeg * 0.5f * Osc(0.40f, 60.f);
+
+    if (bJobActive)
+    {
+        // Nutq energiyasi/pitch'iga bog'liq yengil urg'u (bosh chayqash/silkinish).
+        const float E = SmoothedEnergy;
+        const float PitchAccent = FMath::Max(0.f, LastPitch - 0.5f);
+        Pitch += -SpeakingHeadEmphasisDeg * E * 0.6f; // gapirganda bosh biroz oldinga
+        Yaw += SpeakingHeadEmphasisDeg * 0.4f * E * FMath::PerlinNoise1D(T * 0.9f + NoiseSeed);
+        Roll += SpeakingHeadEmphasisDeg * 0.3f * PitchAccent;
+    }
+
+    // Holatga bog'liq bias (belgi vizual tekshiruvda sozlanishi mumkin — 2.6).
+    if (CompanionState == TEXT("thinking"))
+    {
+        Roll += 4.0f;
+        Pitch += 2.0f;
+    }
+    else if (CompanionState == TEXT("listening"))
+    {
+        Pitch -= 2.5f;
+    }
+
+    // Silliqlash — sakramasin (signal allaqachon silliq, kam lag yetadi).
+    // Bu yerda HeadYawDeg/... HAQIQIY gradus (push'da HeadDegPerUnit'ga bo'linadi).
+    const float S = FMath::Min(1.f, DeltaTime * 7.f);
+    HeadYawDeg += (Yaw - HeadYawDeg) * S;
+    HeadPitchDeg += (Pitch - HeadPitchDeg) * S;
+    HeadRollDeg += (Roll - HeadRollDeg) * S;
 }
 
 // avatar3d.js VISEME_SHAPES bilan bir xil qiymatlar (ARKit nomlari).
@@ -508,6 +675,8 @@ void UCompanionLipSync::TickComponent(
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+    LifeClock += DeltaTime; // idle noise/saccade uchun uzluksiz vaqt
+
     ResetCurves();
 
     MoodBlend = FMath::Min(1.f, MoodBlend + DeltaTime / FMath::Max(0.05f, MoodBlendSeconds));
@@ -532,9 +701,13 @@ void UCompanionLipSync::TickComponent(
         SmoothedEnergy = FMath::Max(0.f, SmoothedEnergy - DeltaTime * 2.f);
     }
 
+    // Idle "tiriklik" — gapirganda ham (siqilgan holda) ishlaydi.
+    ApplyIdleGaze(DeltaTime);
+    ApplyMicroExpression();
     ApplyAutoBlink(DeltaTime);
+    ApplyIdleHead(DeltaTime);
 
-    // Yakuniy clamp.
+    // Yakuniy clamp (faqat yuz curve'lari; bosh gradus qiymatlari alohida).
     for (TPair<FName, float>& Pair : CurveValues)
     {
         Pair.Value = FMath::Clamp(Pair.Value, 0.f, 1.f);

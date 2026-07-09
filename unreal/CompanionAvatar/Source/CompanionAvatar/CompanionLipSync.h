@@ -58,6 +58,69 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion LipSync")
     bool bAutoBlink = true;
 
+    // --- Idle "tiriklik": nigoh, mikro-mimika (bosh alohida Director'da). ---
+
+    /** Idle ko'z nigohi (saccade + drift) — personaj tikilib qotmasin. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    bool bEnableIdleGaze = true;
+
+    /** Nigoh maksimal og'ishi (0..1 ARKit eyeLook birligida; ~0.35 tabiiy). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float GazeAmplitude = 0.35f;
+
+    /** Gapirganda nigoh shu koeffitsientga siqiladi (odam markazga ko'proq qaraydi). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float SpeakingGazeScale = 0.45f;
+
+    /** Idle yuz mikro-mimikasi (sekin brow/smile/cheek drift). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    bool bEnableMicroExpression = true;
+
+    /** Mikro-mimika amplitudasi (~0.05 — sezilmas, "nafas oladigan" yuz). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float MicroExpressionAmplitude = 0.05f;
+
+    // --- Bosh harakati (yuz subjecti orqali HeadYaw/Pitch/Roll, gradus). ---
+    // MetaHuman ABP_MH_LiveLink shu 3 xossani o'sha yuz subjectidan o'qib
+    // (HeadControlSwitch/LLink_Face_Head gate'lari bilan) bosh suyagini buradi.
+    // Gradus qiymatlari [0,1] clamp'dan chetlab o'tadi (alohida saqlanadi).
+
+    /** Idle bosh tebranishi (Perlin sway + nutq urg'usi). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    bool bEnableIdleHead = true;
+
+    /** Idle bosh amplitudasi (HAQIQIY gradus; yaw uchun ~2.5°, roll yarmi). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float HeadAmplitudeDeg = 2.5f;
+
+    /** Gapirganda bosh urg'usi kuchi (nutq energiyasiga ko'paytiriladi, gradus). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float SpeakingHeadEmphasisDeg = 3.0f;
+
+    /**
+     * ABP HeadYaw/Pitch/Roll birligini nechta gradus bosh burilishiga aylantiradi
+     * (o'lchangan: HeadYaw=10 -> bosh yaw ~140°, ya'ni ~14°/birlik). HAQIQIY
+     * gradus qiymati shunga bo'linib LiveLink'ka uzatiladi. Vizual tekshiruvda
+     * (2.6) sozlanishi mumkin.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float HeadDegPerUnit = 14.0f;
+
+    UFUNCTION(BlueprintPure, Category="Companion Idle")
+    float GetHeadYaw() const { return HeadYawDeg; }
+    UFUNCTION(BlueprintPure, Category="Companion Idle")
+    float GetHeadPitch() const { return HeadPitchDeg; }
+    UFUNCTION(BlueprintPure, Category="Companion Idle")
+    float GetHeadRoll() const { return HeadRollDeg; }
+
+    /** Idle nigoh joriy og'ishi (validatsiya/diagnostika uchun, 0..1). */
+    UFUNCTION(BlueprintPure, Category="Companion Idle")
+    float GetGazeMagnitude() const { return FMath::Sqrt(GazeCurrent.X * GazeCurrent.X + GazeCurrent.Y * GazeCurrent.Y); }
+
+    /** Boshlanishdan beri saccade (nigoh sakrashi) soni. */
+    UFUNCTION(BlueprintPure, Category="Companion Idle")
+    int32 GetSaccadeCount() const { return SaccadeCount; }
+
     UFUNCTION(BlueprintCallable, Category="Companion LipSync")
     void StartJob(
         const TArray<FCompanionVisemeFrame>& Visemes,
@@ -154,6 +217,20 @@ private:
     // Avto-pirpirash holati.
     float BlinkCooldown = 1.5f;
     float BlinkPhase = -1.f; // <0: pirpirash yo'q; 0..1: jarayonda
+    int32 BlinkBurstLeft = 0; // ketma-ket qo'sh pirpirash uchun
+
+    // Idle nigoh holati.
+    FVector2D GazeCurrent = FVector2D::ZeroVector; // X: o'ng(+)/chap(-), Y: yuqori(+)/past(-)
+    FVector2D GazeTarget = FVector2D::ZeroVector;
+    float GazeTimer = 0.6f;      // keyingi saccadegacha
+    int32 SaccadeCount = 0;
+    float NoiseSeed = 0.f;       // shu instansiya uchun mikro-mimika fazasi
+    double LifeClock = 0.0;      // uzluksiz idle vaqti (noise uchun)
+
+    // Bosh pozitsiyasi (gradus; clamp'siz LiveLink'ga uzatiladi).
+    float HeadYawDeg = 0.f;
+    float HeadPitchDeg = 0.f;
+    float HeadRollDeg = 0.f;
 
     // LiveLink.
     TSharedPtr<class FCompanionLiveLinkSource> LiveLinkSource;
@@ -165,6 +242,9 @@ private:
     void TeardownLiveLink();
     void PushLiveLinkFrame();
     void ApplyAutoBlink(float DeltaTime);
+    void ApplyIdleGaze(float DeltaTime);
+    void ApplyMicroExpression();
+    void ApplyIdleHead(float DeltaTime);
 
     void ResetCurves();
     void AddShape(const TArray<TPair<FName, float>>* Shape, float Multiplier, float MouthScale);

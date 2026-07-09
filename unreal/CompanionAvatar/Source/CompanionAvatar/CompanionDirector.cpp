@@ -44,12 +44,23 @@ void ACompanionDirector::BeginPlay()
             0.f
         );
     }
+
+    // Idle tiriklik validatsiyasi: 3s isinishdan keyin 0.2s'da bir o'lchaydi.
+    GetWorldTimerManager().SetTimer(
+        IdleLifeTimerHandle,
+        this,
+        &ACompanionDirector::ValidateIdleLife,
+        0.2f,
+        true,
+        3.0f
+    );
 }
 
 void ACompanionDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     GetWorldTimerManager().ClearTimer(ViewTargetTimerHandle);
     GetWorldTimerManager().ClearTimer(FaceValidateTimerHandle);
+    GetWorldTimerManager().ClearTimer(IdleLifeTimerHandle);
     Super::EndPlay(EndPlayReason);
 }
 
@@ -143,11 +154,12 @@ void ACompanionDirector::EnableArkitFaceMode(AActor* Actor)
             Mesh->SetAnimInstanceClass(LiveLinkAnimClass);
         }
 
-        // Yangi anim instansiyaning subject o'zgaruvchilari bo'sh bo'lishi mumkin
-        // (odatda ularni BP LiveLinkSetup to'ldiradi) — o'zimiz to'ldiramiz:
-        // FLiveLinkSubjectName tipidagi barcha xossalarga LLink_Face_Subj yozamiz.
+        // Yangi anim instansiyaning subject/gate o'zgaruvchilarini to'ldiramiz.
         if (UAnimInstance* Anim = Mesh->GetAnimInstance())
         {
+            // 1) FLiveLinkSubjectName tipidagi barcha xossalar -> yuz subjecti.
+            //    (Bosh alohida subject emas — o'sha yuz subjectidan HeadYaw/Pitch/Roll
+            //     xossalari BasicRole bilan o'qiladi.)
             const UScriptStruct* SubjectStruct = FLiveLinkSubjectName::StaticStruct();
             for (TFieldIterator<FStructProperty> It(Anim->GetClass()); It; ++It)
             {
@@ -157,16 +169,25 @@ void ACompanionDirector::EnableArkitFaceMode(AActor* Actor)
                 }
                 FLiveLinkSubjectName* Value =
                     It->ContainerPtrToValuePtr<FLiveLinkSubjectName>(Anim);
-                const FName Target = It->GetName().Contains(TEXT("Head"))
-                    ? FName(TEXT("LLink_Face_Head"))
-                    : FName(TEXT("LLink_Face_Subj"));
                 UE_LOG(LogTemp, Log,
-                    TEXT("CompanionDirector: anim subject var '%s': '%s' -> '%s'"),
-                    *It->GetName(), *Value->Name.ToString(), *Target.ToString());
-                Value->Name = Target;
+                    TEXT("CompanionDirector: anim subject var '%s': '%s' -> 'LLink_Face_Subj'"),
+                    *It->GetName(), *Value->Name.ToString());
+                Value->Name = FName(TEXT("LLink_Face_Subj"));
+            }
+
+            // 2) Bosh rotatsiyasi gate bool'larini yoqamiz (aks holda ABP
+            //    HeadYaw/Pitch/Roll'ni bosh suyagiga qo'llamaydi).
+            for (const TCHAR* BoolName : { TEXT("LLink_Face_Head"), TEXT("HeadControlSwitch") })
+            {
+                if (FBoolProperty* B = FindFProperty<FBoolProperty>(Anim->GetClass(), BoolName))
+                {
+                    B->SetPropertyValue_InContainer(Anim, true);
+                    UE_LOG(LogTemp, Log, TEXT("CompanionDirector: gate '%s' = true"), BoolName);
+                }
             }
         }
 
+        FaceMesh = Mesh;
         UE_LOG(LogTemp, Log, TEXT("CompanionDirector: '%s' -> ABP_MH_LiveLink (ARKit rejim)"),
             *Mesh->GetName());
         return;
@@ -400,6 +421,83 @@ void ACompanionDirector::ValidateFaceCurves()
         UE_LOG(LogTemp, Log,
             TEXT("CompanionDirector: Yuz curve oqimi OK (jawOpen lipsync=%.2f, anim=%.2f)"),
             Ours, Theirs);
+    }
+}
+
+void ACompanionDirector::ValidateIdleLife()
+{
+    if (!LipSync || !MetaHumanActor.IsValid())
+    {
+        GetWorldTimerManager().ClearTimer(IdleLifeTimerHandle);
+        return;
+    }
+
+    ++IdleProbeTicks;
+
+    // Nigoh curve'lari (biz generatsiya qilamiz).
+    float Gaze = 0.f;
+    for (const TCHAR* Name : { TEXT("eyeLookOutLeft"), TEXT("eyeLookOutRight"),
+                               TEXT("eyeLookInLeft"), TEXT("eyeLookInRight"),
+                               TEXT("eyeLookUpLeft"), TEXT("eyeLookDownLeft") })
+    {
+        Gaze = FMath::Max(Gaze, LipSync->GetCurveValue(FName(Name)));
+    }
+    IdleGazeMax = FMath::Max(IdleGazeMax, Gaze);
+
+    // Bosh gradusi (biz generatsiya qilamiz).
+    const float HeadSubj = FMath::Max3(FMath::Abs(LipSync->GetHeadYaw()),
+                                       FMath::Abs(LipSync->GetHeadPitch()),
+                                       FMath::Abs(LipSync->GetHeadRoll()));
+    IdleHeadSubjMax = FMath::Max(IdleHeadSubjMax, HeadSubj);
+
+    // Face 'head' suyagining haqiqiy og'ishi (ABP HeadYaw/Pitch/Roll natijasi).
+    // Dastlabki ~12 tick (yuklanish/poza settling) o'tkazib yuboriladi, so'ng
+    // barqaror reference'dan sway radiusi o'lchanadi — bir martalik siljish
+    // (settling) natijani ifloslamasligi uchun.
+    if (USkeletalMeshComponent* Mesh = FaceMesh.Get())
+    {
+        if (Mesh->GetBoneIndex(FName("head")) != INDEX_NONE && IdleProbeTicks > 12)
+        {
+            const FVector Fwd = Mesh->GetBoneQuaternion(
+                FName("head"), EBoneSpaces::ComponentSpace).GetForwardVector();
+            if (!bIdleHeadBaselineSet)
+            {
+                IdleHeadBaseline = FQuat(Fwd.Rotation()); // reference yo'nalish
+                bIdleHeadBaselineSet = true;
+            }
+            else
+            {
+                const FVector Ref = IdleHeadBaseline.GetForwardVector();
+                const float AngleDeg = FMath::RadiansToDegrees(
+                    FMath::Acos(FMath::Clamp(FVector::DotProduct(Fwd, Ref), -1.f, 1.f)));
+                IdleHeadBoneMax = FMath::Max(IdleHeadBoneMax, AngleDeg);
+            }
+        }
+    }
+
+    if (IdleProbeTicks < 55) // ~3s settling + ~8s o'lchov
+    {
+        return;
+    }
+    GetWorldTimerManager().ClearTimer(IdleLifeTimerHandle);
+
+    UE_LOG(LogTemp, Log,
+        TEXT("CompanionDirector: Idle tiriklik OK (nigoh max=%.2f, saccades=%d, "
+             "bosh gradus=%.2f, bosh suyagi og'ishi=%.2f deg)"),
+        IdleGazeMax, LipSync->GetSaccadeCount(), IdleHeadSubjMax, IdleHeadBoneMax);
+
+    if (IdleHeadSubjMax > 0.5f && IdleHeadBoneMax < 0.2f)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("CompanionDirector: bosh gradusi generatsiya qilinyapti-yu, bosh suyagi "
+                 "qimirlamayapti — HeadYaw/Pitch/Roll ABP'ga yetmayapti (gate/subject)"));
+    }
+    else if (IdleHeadBoneMax > 15.f)
+    {
+        UE_LOG(LogTemp, Warning,
+            TEXT("CompanionDirector: bosh suyagi og'ishi juda katta (%.1f°) — HeadDegPerUnit "
+                 "masshtabi noto'g'ri bo'lishi mumkin (bosh haddan tashqari chayqalyapti)"),
+            IdleHeadBoneMax);
     }
 }
 
