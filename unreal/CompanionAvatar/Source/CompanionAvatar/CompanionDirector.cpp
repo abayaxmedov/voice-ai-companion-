@@ -48,6 +48,7 @@ void ACompanionDirector::BeginPlay()
 void ACompanionDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     GetWorldTimerManager().ClearTimer(ViewTargetTimerHandle);
+    GetWorldTimerManager().ClearTimer(FaceValidateTimerHandle);
     Super::EndPlay(EndPlayReason);
 }
 

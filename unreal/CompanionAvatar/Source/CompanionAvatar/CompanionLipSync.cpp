@@ -75,15 +75,6 @@ namespace
         TEXT("eyeBlinkLeft"), TEXT("eyeBlinkRight"),
     };
 
-    FName CapitalizedCurveName(const FName& Source)
-    {
-        FString Text = Source.ToString();
-        if (!Text.IsEmpty())
-        {
-            Text[0] = FChar::ToUpper(Text[0]);
-        }
-        return FName(*Text);
-    }
 }
 
 void UCompanionLipSync::SetupLiveLink()
@@ -99,19 +90,13 @@ void UCompanionLipSync::SetupLiveLink()
     LiveLinkSource = MakeShared<FCompanionLiveLinkSource>();
     LiveLinkClient->AddSource(LiveLinkSource);
 
-    // Subject xossalari: MetaHuman ARKit PoseAsset'i CamelCase nomlarni kutadi
-    // (JawOpen, MouthSmileLeft, EyeBlinkLeft...); ehtiyot uchun lowercase
-    // asl nomlarni ham qo'shib yuboramiz — mos kelmagani shunchaki e'tibordan
-    // chetda qoladi.
+    // FName taqqoslash katta-kichik harfni farqlamaydi — bizning "jawOpen"
+    // PoseAsset'dagi "JawOpen" pozasiga o'z-o'zidan mos keladi, bitta to'plam
+    // yetarli.
     LiveLinkPropertyNames.Reset();
-    LiveLinkValueSources.Reset();
     for (const TCHAR* Curve : GCompanionArkitCurves)
     {
-        const FName Source(Curve);
-        LiveLinkPropertyNames.Add(CapitalizedCurveName(Source));
-        LiveLinkValueSources.Add(Source);
-        LiveLinkPropertyNames.Add(Source);
-        LiveLinkValueSources.Add(Source);
+        LiveLinkPropertyNames.Add(FName(Curve));
     }
 
     // MetaHuman'ning AnimNode_LiveLinkPose tuguni Animation rolini kutadi
@@ -128,7 +113,8 @@ void UCompanionLipSync::SetupLiveLink()
 
 void UCompanionLipSync::TeardownLiveLink()
 {
-    if (LiveLinkClient && LiveLinkSource.IsValid())
+    if (LiveLinkClient && LiveLinkSource.IsValid()
+        && IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
     {
         LiveLinkClient->RemoveSource(LiveLinkSource);
     }
@@ -142,12 +128,18 @@ void UCompanionLipSync::PushLiveLinkFrame()
     {
         return;
     }
+    // Modul yopilgan bo'lsa keshdagi ko'rsatkich o'lik — har push oldidan arzon tekshiruv.
+    if (!IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+    {
+        LiveLinkClient = nullptr;
+        return;
+    }
 
     FLiveLinkFrameDataStruct Frame(FLiveLinkAnimationFrameData::StaticStruct());
     FLiveLinkAnimationFrameData* Data = Frame.Cast<FLiveLinkAnimationFrameData>();
     Data->WorldTime = FLiveLinkWorldTime();
-    Data->PropertyValues.Reserve(LiveLinkValueSources.Num());
-    for (const FName& Source : LiveLinkValueSources)
+    Data->PropertyValues.Reserve(LiveLinkPropertyNames.Num());
+    for (const FName& Source : LiveLinkPropertyNames)
     {
         Data->PropertyValues.Add(GetCurveValue(Source));
     }
@@ -185,8 +177,10 @@ void UCompanionLipSync::ApplyAutoBlink(float DeltaTime)
     {
         // 0->1->0 uchburchak, silliqlangan.
         const float Blink = Smoothstep(1.f - FMath::Abs(BlinkPhase * 2.f - 1.f));
-        float& Left = CurveValues.FindOrAdd(FName("eyeBlinkLeft"));
-        float& Right = CurveValues.FindOrAdd(FName("eyeBlinkRight"));
+        static const FName BlinkLeft(TEXT("eyeBlinkLeft"));
+        static const FName BlinkRight(TEXT("eyeBlinkRight"));
+        float& Left = CurveValues.FindOrAdd(BlinkLeft);
+        float& Right = CurveValues.FindOrAdd(BlinkRight);
         Left = FMath::Max(Left, Blink);
         Right = FMath::Max(Right, Blink);
     }

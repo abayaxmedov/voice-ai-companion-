@@ -158,9 +158,8 @@ private:
     // LiveLink.
     TSharedPtr<class FCompanionLiveLinkSource> LiveLinkSource;
     class ILiveLinkClient* LiveLinkClient = nullptr;
-    // Subject property nomi -> bizning curve nomi (CamelCase va lowercase juftlari).
+    // Subject xossa nomlari (FName case-insensitive — PoseAsset nomlariga mos).
     TArray<FName> LiveLinkPropertyNames;
-    TArray<FName> LiveLinkValueSources;
 
     void SetupLiveLink();
     void TeardownLiveLink();
