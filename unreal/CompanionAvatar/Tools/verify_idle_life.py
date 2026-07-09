@@ -30,10 +30,12 @@ LOG = Path("/tmp/companion_idle_life.log")
 GAZE_MIN = 0.05
 SACCADES_MIN = 2
 HEAD_BONE_MIN = 0.15  # deg
+BREATH_RANGE_MIN = 0.5  # nafas siklining kamida yarmi kechishi kerak
 
 PATTERN = re.compile(
     r"Idle tiriklik OK \(nigoh max=([\d.]+), saccades=(\d+), "
-    r"bosh gradus=([\d.]+), bosh suyagi og'ishi=([\d.]+) deg\)"
+    r"bosh gradus=([\d.]+), bosh suyagi og'ishi=([\d.]+) deg, "
+    r"nafas=([\d.]+)\.\.([\d.]+)\)"
 )
 
 
@@ -78,12 +80,15 @@ def main() -> int:
         print("FAIL: 'Idle tiriklik OK' logi topilmadi (timeout yoki xato)")
         return 1
 
-    gaze, saccades, head_deg, head_bone = (
+    gaze, saccades, head_deg, head_bone, breath_lo, breath_hi = (
         float(match.group(1)), int(match.group(2)),
         float(match.group(3)), float(match.group(4)),
+        float(match.group(5)), float(match.group(6)),
     )
+    breath_range = breath_hi - breath_lo
     print(f"O'lchandi: nigoh={gaze:.2f} saccades={saccades} "
-          f"bosh_gradus={head_deg:.2f} bosh_suyagi={head_bone:.2f}deg")
+          f"bosh_gradus={head_deg:.2f} bosh_suyagi={head_bone:.2f}deg "
+          f"nafas={breath_lo:.2f}..{breath_hi:.2f}")
 
     ok = True
     if gaze < GAZE_MIN:
@@ -93,6 +98,9 @@ def main() -> int:
     if head_bone < HEAD_BONE_MIN:
         print(f"  FAIL bosh suyagi {head_bone:.3f} < {HEAD_BONE_MIN} deg "
               f"(HeadYaw/Pitch/Roll ABP'ga yetmayapti)"); ok = False
+    if breath_range < BREATH_RANGE_MIN:
+        print(f"  FAIL nafas sikli {breath_range:.2f} < {BREATH_RANGE_MIN} "
+              f"(nafas ritmi kechmayapti)"); ok = False
 
     print("NATIJA: PASS ✅ — personaj idle'da tirik" if ok else "NATIJA: FAIL ❌")
     return 0 if ok else 1

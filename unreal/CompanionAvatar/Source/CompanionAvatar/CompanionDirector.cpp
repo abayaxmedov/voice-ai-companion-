@@ -450,6 +450,11 @@ void ACompanionDirector::ValidateIdleLife()
                                        FMath::Abs(LipSync->GetHeadRoll()));
     IdleHeadSubjMax = FMath::Max(IdleHeadSubjMax, HeadSubj);
 
+    // Nafas ritmi (0..1 tsikl) — min/max to'liq nafas siklini isbotlaydi.
+    const float Breath = LipSync->GetBreathLevel();
+    IdleBreathMin = FMath::Min(IdleBreathMin, Breath);
+    IdleBreathMax = FMath::Max(IdleBreathMax, Breath);
+
     // Face 'head' suyagining haqiqiy og'ishi (ABP HeadYaw/Pitch/Roll natijasi).
     // Dastlabki ~12 tick (yuklanish/poza settling) o'tkazib yuboriladi, so'ng
     // barqaror reference'dan sway radiusi o'lchanadi — bir martalik siljish
@@ -483,8 +488,9 @@ void ACompanionDirector::ValidateIdleLife()
 
     UE_LOG(LogTemp, Log,
         TEXT("CompanionDirector: Idle tiriklik OK (nigoh max=%.2f, saccades=%d, "
-             "bosh gradus=%.2f, bosh suyagi og'ishi=%.2f deg)"),
-        IdleGazeMax, LipSync->GetSaccadeCount(), IdleHeadSubjMax, IdleHeadBoneMax);
+             "bosh gradus=%.2f, bosh suyagi og'ishi=%.2f deg, nafas=%.2f..%.2f)"),
+        IdleGazeMax, LipSync->GetSaccadeCount(), IdleHeadSubjMax, IdleHeadBoneMax,
+        IdleBreathMin, IdleBreathMax);
 
     if (IdleHeadSubjMax > 0.5f && IdleHeadBoneMax < 0.2f)
     {

@@ -62,6 +62,8 @@ private:
     float IdleGazeMax = 0.f;
     float IdleHeadSubjMax = 0.f;   // LipSync generatsiya qilgan gradus (biz)
     float IdleHeadBoneMax = 0.f;   // Face 'head' suyagi haqiqiy og'ishi (ABP natijasi)
+    float IdleBreathMin = 1.f;     // nafas siklining eng past darajasi
+    float IdleBreathMax = 0.f;     // nafas siklining eng yuqori darajasi
     bool bIdleHeadBaselineSet = false;
     FQuat IdleHeadBaseline = FQuat::Identity;
 

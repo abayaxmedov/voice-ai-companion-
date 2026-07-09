@@ -84,6 +84,8 @@ namespace
     };
 
     // Bosh rotatsiyasi (gradus) — clamp'siz, alohida yo'l bilan uzatiladi.
+    // (HeadTranslation'ni ABP qo'llab-quvvatlamasligi o'lchab tasdiqlandi —
+    //  nafas shuning uchun bosh pitch tebranishi bilan taqlid qilinadi.)
     const TCHAR* GCompanionHeadProps[] = {
         TEXT("HeadYaw"), TEXT("HeadPitch"), TEXT("HeadRoll"),
     };
@@ -202,8 +204,12 @@ void UCompanionLipSync::ApplyAutoBlink(float DeltaTime)
             else
             {
                 // Gapirganda odam tez-tez pirpiraydi; idle'da kamroq.
-                const float Base = bJobActive ? 1.6f : 2.6f;
-                const float Span = bJobActive ? 2.2f : 3.8f;
+                float Base = bJobActive ? 1.6f : 2.6f;
+                float Span = bJobActive ? 2.2f : 3.8f;
+                // Holatga bog'liq: thinking'da uzoq tikilib kamroq pirpiraydi;
+                // listening'da e'tiborli, biroz tez-tez.
+                if (CompanionState == TEXT("thinking")) { Base *= 1.7f; Span *= 1.5f; }
+                else if (CompanionState == TEXT("listening")) { Base *= 0.85f; }
                 BlinkCooldown = FMath::FRandRange(Base, Base + Span);
                 // Vaqti-vaqti bilan qo'sh pirpirash (tabiiy).
                 if (FMath::FRand() < 0.22f)
@@ -261,11 +267,28 @@ void UCompanionLipSync::ApplyIdleGaze(float DeltaTime)
     // Saccade — tez ko'chish; drift esa chiqishda qo'shiladi.
     GazeCurrent += (GazeTarget - GazeCurrent) * FMath::Min(1.f, DeltaTime * 12.f);
 
+    // Holatga bog'liq nigoh siljishi (silliq lerp — sakramasin).
+    FVector2D TargetBias = FVector2D::ZeroVector;
+    float StateAmp = 1.f;
+    if (CompanionState == TEXT("listening"))
+    {
+        TargetBias = FVector2D(0.f, 0.04f); // deyarli markaz (kameraga e'tibor)
+        StateAmp = 0.5f;
+    }
+    else if (CompanionState == TEXT("thinking"))
+    {
+        TargetBias = FVector2D(-0.5f, 0.6f); // yuqori-chapga (o'ylash nigohi)
+        StateAmp = 0.8f;
+    }
+    GazeStateBias += (TargetBias - GazeStateBias) * FMath::Min(1.f, DeltaTime * 3.f);
+
     const float T = static_cast<float>(LifeClock);
     const float DriftX = 0.06f * FMath::PerlinNoise1D(T * 0.3f + NoiseSeed);
     const float DriftY = 0.05f * FMath::PerlinNoise1D(T * 0.27f + NoiseSeed + 11.f);
-    const float GX = FMath::Clamp(GazeCurrent.X + DriftX, -1.f, 1.f) * GazeAmplitude * RangeScale;
-    const float GY = FMath::Clamp(GazeCurrent.Y + DriftY, -1.f, 1.f) * GazeAmplitude * RangeScale;
+    const float GX = FMath::Clamp(GazeCurrent.X * StateAmp + GazeStateBias.X + DriftX, -1.f, 1.f)
+                     * GazeAmplitude * RangeScale;
+    const float GY = FMath::Clamp(GazeCurrent.Y * StateAmp + GazeStateBias.Y + DriftY, -1.f, 1.f)
+                     * GazeAmplitude * RangeScale;
 
     // ARKit konvensiyasi: +X = personaj o'ngiga qaraydi (chap ko'z In, o'ng ko'z Out).
     const float RightAmt = FMath::Max(0.f, GX);
@@ -323,6 +346,16 @@ void UCompanionLipSync::ApplyIdleHead(float DeltaTime)
     float Yaw = HeadAmplitudeDeg * Osc(0.55f, 0.f);
     float Pitch = HeadAmplitudeDeg * 0.7f * Osc(0.47f, 30.f);
     float Roll = HeadAmplitudeDeg * 0.5f * Osc(0.40f, 60.f);
+
+    // Nafas: sekin (~4-5s davr) pitch tebranishi — ko'krak ko'tarilib-tushayotgandek
+    // his beradi (HeadTranslation ABP'da yo'q, shuning uchun bosh bilan taqlid).
+    if (bEnableBreathing)
+    {
+        BreathPhase += DeltaTime / FMath::Max(1.f, BreathPeriodSec);
+        BreathPhase = FMath::Fmod(BreathPhase, 1.f);
+        BreathLevel = 0.5f - 0.5f * FMath::Cos(BreathPhase * 2.f * PI); // 0..1 silliq
+        Pitch += BreathPitchDeg * (BreathLevel - 0.5f) * 2.f;           // ±BreathPitchDeg
+    }
 
     if (bJobActive)
     {

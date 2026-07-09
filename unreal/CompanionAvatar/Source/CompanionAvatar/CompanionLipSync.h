@@ -113,6 +113,24 @@ public:
     UFUNCTION(BlueprintPure, Category="Companion Idle")
     float GetHeadRoll() const { return HeadRollDeg; }
 
+    // --- Nafas (portret uchun bosh pitch bilan taqlid; HeadTranslation ABP'da yo'q). ---
+
+    /** Sekin nafas ritmi (bosh pitch tebranishi bilan). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    bool bEnableBreathing = true;
+
+    /** Nafas davri (soniya, ~4-5s tinch nafas). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float BreathPeriodSec = 4.2f;
+
+    /** Nafas pitch amplitudasi (gradus; ~0.7° — sezilmas ko'tarilish). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
+    float BreathPitchDeg = 0.7f;
+
+    /** Nafas fazasi darajasi 0..1 (validatsiya/diagnostika uchun). */
+    UFUNCTION(BlueprintPure, Category="Companion Idle")
+    float GetBreathLevel() const { return BreathLevel; }
+
     /** Idle nigoh joriy og'ishi (validatsiya/diagnostika uchun, 0..1). */
     UFUNCTION(BlueprintPure, Category="Companion Idle")
     float GetGazeMagnitude() const { return FMath::Sqrt(GazeCurrent.X * GazeCurrent.X + GazeCurrent.Y * GazeCurrent.Y); }
@@ -222,6 +240,7 @@ private:
     // Idle nigoh holati.
     FVector2D GazeCurrent = FVector2D::ZeroVector; // X: o'ng(+)/chap(-), Y: yuqori(+)/past(-)
     FVector2D GazeTarget = FVector2D::ZeroVector;
+    FVector2D GazeStateBias = FVector2D::ZeroVector; // holatga bog'liq nigoh siljishi (silliq)
     float GazeTimer = 0.6f;      // keyingi saccadegacha
     int32 SaccadeCount = 0;
     float NoiseSeed = 0.f;       // shu instansiya uchun mikro-mimika fazasi
@@ -231,6 +250,8 @@ private:
     float HeadYawDeg = 0.f;
     float HeadPitchDeg = 0.f;
     float HeadRollDeg = 0.f;
+    float BreathPhase = 0.f;   // 0..1 loop
+    float BreathLevel = 0.5f;  // 0..1 (nafas chuqurligi)
 
     // LiveLink.
     TSharedPtr<class FCompanionLiveLinkSource> LiveLinkSource;
