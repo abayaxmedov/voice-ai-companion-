@@ -60,6 +60,9 @@ private:
     float ProbeTheirsMax = 0.f;
     int32 ProbeTicks = 0;
 
+    // Har job'da birinchi sync'ni bir marta log qilish uchun.
+    bool bSyncLoggedThisJob = false;
+
     void AttachLipSyncToMetaHuman();
 
     /**
@@ -90,6 +93,9 @@ private:
 
     UFUNCTION()
     void HandleState(const FString& State);
+
+    UFUNCTION()
+    void HandleSync(const FString& TurnId, float PositionSeconds);
 
     UFUNCTION()
     void HandleInterrupt(const FString& TurnId, const FString& Reason);

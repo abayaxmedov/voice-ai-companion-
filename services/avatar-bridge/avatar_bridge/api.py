@@ -29,6 +29,10 @@ class MetaHumanBridgeRouter:
             return 200, self._runtime.set_state(str(payload.get("state", "idle")))
         if method == "POST" and path == "/avatar/play":
             return 200, self._runtime.play(payload)
+        if method == "POST" and path == "/avatar/sync":
+            return 200, self._runtime.sync(
+                float(payload.get("position_ms", 0.0)), payload.get("turn_id")
+            )
         if method == "POST" and path == "/avatar/interrupt":
             return 200, self._runtime.interrupt(payload.get("turn_id"), payload.get("reason", "user_barge_in"))
         return 404, {"error": "not_found", "path": path}

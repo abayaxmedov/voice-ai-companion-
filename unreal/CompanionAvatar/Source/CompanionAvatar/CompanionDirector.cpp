@@ -28,6 +28,7 @@ void ACompanionDirector::BeginPlay()
 
     BridgePoller->OnPlayJobReceived.AddDynamic(this, &ACompanionDirector::HandlePlayJob);
     BridgePoller->OnStateReceived.AddDynamic(this, &ACompanionDirector::HandleState);
+    BridgePoller->OnSyncReceived.AddDynamic(this, &ACompanionDirector::HandleSync);
     BridgePoller->OnInterruptReceived.AddDynamic(this, &ACompanionDirector::HandleInterrupt);
 
     AttachLipSyncToMetaHuman();
@@ -215,8 +216,9 @@ void ACompanionDirector::HandlePlayJob(
 
     LipSync->StartJob(Visemes, MouthCurves, Mood);
     // Audio Electron tomonida ijro etiladi — hodisa kelgan zahoti boshlaymiz;
-    // drift sezilsa keyinchalik SyncPlaybackTime bilan tuzatiladi.
+    // keyin avatar.sync hodisalari soatni haqiqiy pozitsiyaga tuzatib boradi.
     LipSync->StartPlayback();
+    bSyncLoggedThisJob = false;
 
     if (!bFaceValidated && !FaceValidateTimerHandle.IsValid())
     {
@@ -406,6 +408,21 @@ void ACompanionDirector::HandleState(const FString& State)
     if (LipSync)
     {
         LipSync->SetCompanionState(State);
+    }
+}
+
+void ACompanionDirector::HandleSync(const FString& TurnId, float PositionSeconds)
+{
+    if (!LipSync || !LipSync->IsSpeaking())
+    {
+        return;
+    }
+    LipSync->SyncPlaybackTime(PositionSeconds);
+    if (!bSyncLoggedThisJob)
+    {
+        bSyncLoggedThisJob = true;
+        UE_LOG(LogTemp, Log, TEXT("CompanionDirector: audio sync qabul qilindi (%.2fs)"),
+            PositionSeconds);
     }
 }
 

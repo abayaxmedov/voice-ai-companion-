@@ -113,7 +113,21 @@
   // Bridge orqali UE oqimi tayyor bo'lsa Three.js o'rnida WebRTC player
   // ochiladi; oqim yo'qolsa avtomatik Three.js'ga qaytadi.
   let ueFrame = null;
+  let bridgeUrl = null;
+
+  // UE lab-sinxron soatini haqiqiy audio pozitsiyasiga tuzatish: UE oqimi
+  // aktiv bo'lsa har ~500ms bridge'ga pozitsiya yuboriladi (avatar.sync).
+  function postAvatarSync(positionMs) {
+    if (!bridgeUrl || !ueFrame || !Number.isFinite(positionMs)) return;
+    fetch(bridgeUrl + "/avatar/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ position_ms: Math.round(positionMs) }),
+    }).catch(() => { /* bridge vaqtincha yo'q — jim */ });
+  }
+
   function updateAvatarStream(bridge) {
+    if (bridge && bridge.bridge_url) bridgeUrl = bridge.bridge_url;
     const ready = !!(bridge && bridge.stream_ready && bridge.player_url);
     const three = document.getElementById("avatar3d-container");
     const twoD = document.getElementById("avatar-canvas");
@@ -550,6 +564,7 @@
       stopped: false,
       finishTimer: null,
       mouthTimer: null,
+      syncTimer: null,
     };
     st.stop = () => {
       if (st.stopped) return;
@@ -559,6 +574,7 @@
       st.sources.clear();
       clearTimeout(st.finishTimer);
       clearInterval(st.mouthTimer);
+      clearInterval(st.syncTimer);
       if (activeStream === st) activeStream = null;
     };
     stopPlayback("new_turn");
@@ -632,6 +648,10 @@
             );
             avatar().setMouthLevel(idx >= 0 ? st.curves.energy[idx] : 0);
           }, 50);
+          // UE lab-sinxron soati uchun haqiqiy pozitsiya (avatar.sync).
+          st.syncTimer = setInterval(() => {
+            if (st.clock) postAvatarSync(st.clock.currentTime * 1000);
+          }, 500);
         } else if (av.updateTimeline) {
           av.updateTimeline(st.visemes, st.curves);
         }
@@ -769,10 +789,17 @@
       }, 90);
     }
 
+    const syncTimer = setInterval(() => {
+      if (currentAudio !== audio) return clearInterval(syncTimer);
+      postAvatarSync(audio.currentTime * 1000);
+    }, 500);
+
     audio.onended = () => {
+      clearInterval(syncTimer);
       if (currentAudio === audio) finishPlayback();
     };
     audio.onerror = () => {
+      clearInterval(syncTimer);
       if (currentAudio === audio) {
         finishPlayback();
         showError("Audio o'ynatishda xatolik.");

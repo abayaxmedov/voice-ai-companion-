@@ -9,6 +9,7 @@ class AvatarEventType(str, Enum):
     READY = "avatar.ready"
     STATE = "avatar.state"
     PLAY = "avatar.play"
+    SYNC = "avatar.sync"
     INTERRUPT = "avatar.interrupt"
     COMPLETED = "avatar.completed"
     ERROR = "avatar.error"

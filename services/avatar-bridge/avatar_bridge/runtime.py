@@ -67,6 +67,20 @@ class MetaHumanBridgeRuntime:
         payload.setdefault("avatar_id", self.avatar_id)
         return self.push(AvatarEvent(event_type=AvatarEventType.PLAY, payload=payload))
 
+    def sync(self, position_ms: float, turn_id: str | None = None) -> dict[str, Any]:
+        """Electron'dagi haqiqiy audio pozitsiyasi — UE lab-sinxron soatini
+        shu qiymatga tuzatadi (hodisa created_at'i bilan latency kompensatsiyasi)."""
+        return self.push(
+            AvatarEvent(
+                event_type=AvatarEventType.SYNC,
+                payload={
+                    "avatar_id": self.avatar_id,
+                    "turn_id": turn_id,
+                    "position_ms": float(position_ms),
+                },
+            )
+        )
+
     def interrupt(self, turn_id: str | None = None, reason: str = "user_barge_in") -> dict[str, Any]:
         return self.push(
             AvatarEvent(

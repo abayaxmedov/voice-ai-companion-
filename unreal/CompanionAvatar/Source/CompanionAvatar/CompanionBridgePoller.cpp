@@ -256,6 +256,31 @@ void UCompanionBridgePoller::HandleEventObject(const TSharedPtr<FJsonObject>& Ev
         return;
     }
 
+    if (Type == TEXT("avatar.sync"))
+    {
+        double PositionMs = 0.0;
+        (*Payload)->TryGetNumberField(TEXT("position_ms"), PositionMs);
+        FString TurnId;
+        (*Payload)->TryGetStringField(TEXT("turn_id"), TurnId);
+
+        // Hodisa yaratilgandan beri o'tgan vaqtni qo'shamiz (bridge va UE bir
+        // mashinada — soatlar bir xil); poll kechikishi shu bilan yo'qoladi.
+        double LatencyMs = 0.0;
+        FString CreatedAt;
+        FDateTime Created;
+        if (EventObject->TryGetStringField(TEXT("created_at"), CreatedAt)
+            && FDateTime::ParseIso8601(*CreatedAt, Created))
+        {
+            LatencyMs = FMath::Clamp(
+                (FDateTime::UtcNow() - Created).GetTotalMilliseconds(), 0.0, 1000.0);
+        }
+
+        const float PositionSeconds = static_cast<float>((PositionMs + LatencyMs) / 1000.0);
+        OnAvatarSyncEvent(TurnId, PositionSeconds);
+        OnSyncReceived.Broadcast(TurnId, PositionSeconds);
+        return;
+    }
+
     if (Type == TEXT("avatar.state"))
     {
         FString State;

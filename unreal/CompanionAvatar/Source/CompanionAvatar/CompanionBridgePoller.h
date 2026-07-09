@@ -14,6 +14,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionReadySignature, const FString&, AvatarId, const FString&, PlayerUrl);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams(FCompanionPlayJobSignature, const FString&, TurnId, const FString&, AudioRef, const FString&, Mood, const FString&, Behavior, const TArray<FCompanionVisemeFrame>&, Visemes, const FCompanionMouthCurves&, MouthCurves);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCompanionStateSignature, const FString&, State);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionSyncSignature, const FString&, TurnId, float, PositionSeconds);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionInterruptSignature, const FString&, TurnId, const FString&, Reason);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCompanionCompletedSignature, const FString&, TurnId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCompanionErrorSignature, const FString&, TurnId, const FString&, Message);
@@ -75,6 +76,10 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
     void OnAvatarStateEvent(const FString& State);
 
+    /** Electron audio pozitsiyasi (latency kompensatsiyalangan, soniya). */
+    UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
+    void OnAvatarSyncEvent(const FString& TurnId, float PositionSeconds);
+
     UFUNCTION(BlueprintImplementableEvent, Category="Companion Bridge")
     void OnAvatarInterruptEvent(const FString& TurnId, const FString& Reason);
 
@@ -92,6 +97,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
     FCompanionStateSignature OnStateReceived;
+
+    UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
+    FCompanionSyncSignature OnSyncReceived;
 
     UPROPERTY(BlueprintAssignable, Category="Companion Bridge")
     FCompanionInterruptSignature OnInterruptReceived;
