@@ -327,6 +327,105 @@ void UCompanionLipSync::ApplyMicroExpression()
     CurveValues.FindOrAdd(FName("cheekSquintRight")) += Gain * 0.3f * FMath::Max(0.f, N(0.085f, 24.f));
 }
 
+void UCompanionLipSync::ApplyIdleExpression(float DeltaTime)
+{
+    if (!bEnableExpressionCycle)
+    {
+        return;
+    }
+
+    // Yangi ifodaga o'tish vaqti keldimi.
+    ExprTimer -= DeltaTime;
+    if (ExprTimer <= 0.f)
+    {
+        static const TCHAR* Pool[] = {
+            TEXT("neutral_warm"), TEXT("soft_smile"), TEXT("open_smile"),
+            TEXT("gentle_curious"), TEXT("soft_smile"), TEXT("neutral_warm"),
+        };
+        FString Next;
+        do
+        {
+            Next = Pool[FMath::RandHelper(UE_ARRAY_COUNT(Pool))];
+        } while (Next == CurrentExpr);
+        PreviousExpr = CurrentExpr;
+        CurrentExpr = Next;
+        ExprBlend = 0.f;
+        ++ExprCycleCount;
+        ExprTimer = FMath::FRandRange(ExpressionHoldMinSec, ExpressionHoldMaxSec);
+    }
+
+    // Sekin blend (prev -> current) ~1.5s.
+    ExprBlend = FMath::Min(1.f, ExprBlend + DeltaTime / 1.5f);
+    const float B = Smoothstep(ExprBlend);
+
+    // Gapirganda lab-sinxronga xalaqit qilmasin — kuchi pasayadi.
+    const float Gain = ExpressionAmplitude * (bJobActive ? 0.25f : 1.f);
+    AddShape(IdleExprShapes().Find(PreviousExpr), (1.f - B) * Gain, 1.f);
+    AddShape(IdleExprShapes().Find(CurrentExpr), B * Gain, 1.f);
+}
+
+void UCompanionLipSync::TriggerReaction()
+{
+    // "E'tibor" reaksiyasi: darhol yumshoq imo-ishora boshlaymiz (agar hozir
+    // faol bo'lmasa) — xabar/holat kelganda personaj "jonlanadi".
+    if (bGestureActive)
+    {
+        return;
+    }
+    bGestureActive = true;
+    GesturePhase = 0.f;
+    // Reaksiya biroz yumshoqroq va ko'proq "e'tibor" (yuqoriga/yon).
+    GestureTargetYaw = FMath::FRandRange(0.55f, 0.9f) * GestureYawDeg * (FMath::RandBool() ? 1.f : -1.f);
+    GestureTargetPitch = FMath::FRandRange(-0.35f, 0.15f) * GestureYawDeg;
+    ++GestureCount;
+}
+
+float UCompanionLipSync::UpdateGesture(float DeltaTime)
+{
+    if (!bEnableGestures)
+    {
+        return 0.f;
+    }
+
+    if (!bGestureActive)
+    {
+        GestureTimer -= DeltaTime;
+        if (GestureTimer <= 0.f)
+        {
+            bGestureActive = true;
+            GesturePhase = 0.f;
+            GestureTargetYaw = FMath::FRandRange(0.7f, 1.f) * GestureYawDeg * (FMath::RandBool() ? 1.f : -1.f);
+            GestureTargetPitch = FMath::FRandRange(-0.25f, 0.25f) * GestureYawDeg;
+            ++GestureCount;
+        }
+        return 0.f;
+    }
+
+    // Envelope: kirish (0..0.28) -> ushlash (0.28..0.6) -> chiqish (0.6..1).
+    GesturePhase += DeltaTime / FMath::Max(0.5f, GestureDurationSec);
+    float Env;
+    if (GesturePhase < 0.28f)
+    {
+        Env = Smoothstep(GesturePhase / 0.28f);
+    }
+    else if (GesturePhase < 0.6f)
+    {
+        Env = 1.f;
+    }
+    else
+    {
+        Env = 1.f - Smoothstep((GesturePhase - 0.6f) / 0.4f);
+    }
+
+    if (GesturePhase >= 1.f)
+    {
+        bGestureActive = false;
+        GestureTimer = FMath::FRandRange(GestureIntervalMinSec, GestureIntervalMaxSec);
+        return 0.f;
+    }
+    return Env;
+}
+
 void UCompanionLipSync::ApplyIdleHead(float DeltaTime)
 {
     if (!bEnableIdleHead)
@@ -378,10 +477,19 @@ void UCompanionLipSync::ApplyIdleHead(float DeltaTime)
         Pitch -= 2.5f;
     }
 
-    // Biaslar ustma-ust tushsa ham "flop" bo'lmasin — har o'qni xavfsiz cheklaymiz.
+    // Idle sway biaslari ustma-ust tushsa ham "flop" bo'lmasin — avval idle cap.
     Yaw = FMath::Clamp(Yaw, -HeadMaxDeg, HeadMaxDeg);
     Pitch = FMath::Clamp(Pitch, -HeadMaxDeg, HeadMaxDeg);
     Roll = FMath::Clamp(Roll, -HeadMaxDeg, HeadMaxDeg);
+
+    // Katta imo-ishora (idle cap'dan yuqori — atay katta burilish/reaksiya).
+    const float GestureEnv = UpdateGesture(DeltaTime);
+    Yaw += GestureTargetYaw * GestureEnv;
+    Pitch += GestureTargetPitch * GestureEnv;
+
+    // Yakuniy xavfsiz chegara (imo-ishora bilan birga).
+    Yaw = FMath::Clamp(Yaw, -GestureMaxDeg, GestureMaxDeg);
+    Pitch = FMath::Clamp(Pitch, -GestureMaxDeg, GestureMaxDeg);
 
     // Silliqlash — sakramasin (signal allaqachon silliq, kam lag yetadi).
     // Bu yerda HeadYawDeg/... HAQIQIY gradus (push'da HeadDegPerUnit'ga bo'linadi).
@@ -497,6 +605,35 @@ const TMap<FString, FShape>& UCompanionLipSync::MoodShapes()
             {FName("mouthSmileLeft"), 0.3f}, {FName("mouthSmileRight"), 0.27f},
             {FName("browInnerUp"), 0.18f}, {FName("eyeSquintLeft"), 0.12f},
             {FName("mouthDimpleLeft"), 0.14f}}));
+        return Map;
+    }();
+    return Shapes;
+}
+
+// Idle ifoda tsikli shakllari — iliq, do'stona holatlar orasida almashadi
+// (Unclaw: yuz statik emas, "breathes between words").
+const TMap<FString, FShape>& UCompanionLipSync::IdleExprShapes()
+{
+    static const TMap<FString, FShape> Shapes = []()
+    {
+        TMap<FString, FShape> Map;
+        Map.Add(TEXT("neutral_warm"), MakeShape({
+            {FName("mouthSmileLeft"), 0.12f}, {FName("mouthSmileRight"), 0.1f},
+            {FName("cheekSquintLeft"), 0.05f}, {FName("cheekSquintRight"), 0.04f}}));
+        Map.Add(TEXT("soft_smile"), MakeShape({
+            {FName("mouthSmileLeft"), 0.34f}, {FName("mouthSmileRight"), 0.3f},
+            {FName("cheekSquintLeft"), 0.2f}, {FName("cheekSquintRight"), 0.16f},
+            {FName("eyeSquintLeft"), 0.12f}, {FName("eyeSquintRight"), 0.1f},
+            {FName("mouthDimpleLeft"), 0.14f}, {FName("mouthDimpleRight"), 0.1f}}));
+        Map.Add(TEXT("open_smile"), MakeShape({
+            {FName("mouthSmileLeft"), 0.42f}, {FName("mouthSmileRight"), 0.38f},
+            {FName("jawOpen"), 0.12f}, {FName("cheekSquintLeft"), 0.26f},
+            {FName("cheekSquintRight"), 0.22f}, {FName("eyeSquintLeft"), 0.16f},
+            {FName("eyeSquintRight"), 0.14f}, {FName("browInnerUp"), 0.1f}}));
+        Map.Add(TEXT("gentle_curious"), MakeShape({
+            {FName("browInnerUp"), 0.2f}, {FName("browOuterUpLeft"), 0.16f},
+            {FName("mouthSmileLeft"), 0.2f}, {FName("mouthSmileRight"), 0.16f},
+            {FName("eyeWideLeft"), 0.08f}, {FName("eyeWideRight"), 0.07f}}));
         return Map;
     }();
     return Shapes;
@@ -742,6 +879,7 @@ void UCompanionLipSync::TickComponent(
     // Idle "tiriklik" — gapirganda ham (siqilgan holda) ishlaydi.
     ApplyIdleGaze(DeltaTime);
     ApplyMicroExpression();
+    ApplyIdleExpression(DeltaTime);
     ApplyAutoBlink(DeltaTime);
     ApplyIdleHead(DeltaTime);
 

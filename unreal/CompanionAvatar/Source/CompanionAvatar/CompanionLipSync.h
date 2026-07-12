@@ -80,6 +80,64 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle")
     float MicroExpressionAmplitude = 0.05f;
 
+    // --- Ekspressiv idle v2: ifoda tsikllari (Unclaw uslubi). ---
+    // Personaj yuzi statik maska emas — bir necha iliq ifoda orasida sekin
+    // almashadi (yumshoq tabassum ↔ ochiq tabassum ↔ neytral-iliq).
+
+    /** Idle ifoda tsikllari yoqiq (gapirganda avtomatik pasayadi). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    bool bEnableExpressionCycle = true;
+
+    /** Bitta ifoda qancha ushlanadi (soniya, tasodifiy oraliq). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float ExpressionHoldMinSec = 5.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float ExpressionHoldMaxSec = 13.0f;
+
+    /** Idle ifoda kuchi (0..1; ~0.6 tabiiy). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float ExpressionAmplitude = 0.6f;
+
+    UFUNCTION(BlueprintPure, Category="Companion Idle|v2")
+    int32 GetExpressionCycleCount() const { return ExprCycleCount; }
+
+    // --- Ekspressiv idle v2: katta imo-ishoralar + hodisa-reaksiyasi. ---
+    // Vaqti-vaqti bilan boshning KATTA burilishi (chetga qarab qaytish) va
+    // xabar kelganda "e'tibor/o'ylash" reaksiyasi — video-qo'ng'iroqdagi odam.
+
+    /** Idle katta imo-ishoralar yoqiq. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    bool bEnableGestures = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float GestureIntervalMinSec = 18.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float GestureIntervalMaxSec = 55.0f;
+
+    /** Imo-ishora bosh burilishi amplitudasi (HAQIQIY gradus; ~15°). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float GestureYawDeg = 15.0f;
+
+    /** Bitta imo-ishora davomiyligi (kirish+ushlash+chiqish, soniya). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float GestureDurationSec = 3.2f;
+
+    /** Imo-ishora paytida bosh chegarasi (gradus) — idle cap'dan yuqori. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Idle|v2")
+    float GestureMaxDeg = 20.0f;
+
+    /** Xabar/holat kelganda "e'tibor" reaksiya imo-ishorasini boshlaydi. */
+    UFUNCTION(BlueprintCallable, Category="Companion Idle|v2")
+    void TriggerReaction();
+
+    UFUNCTION(BlueprintPure, Category="Companion Idle|v2")
+    int32 GetGestureCount() const { return GestureCount; }
+
+    UFUNCTION(BlueprintPure, Category="Companion Idle|v2")
+    bool IsGestureActive() const { return bGestureActive; }
+
     // --- Bosh harakati (yuz subjecti orqali HeadYaw/Pitch/Roll, gradus). ---
     // MetaHuman ABP_MH_LiveLink shu 3 xossani o'sha yuz subjectidan o'qib
     // (HeadControlSwitch/LLink_Face_Head gate'lari bilan) bosh suyagini buradi.
@@ -257,6 +315,21 @@ private:
     float BreathPhase = 0.f;   // 0..1 loop
     float BreathLevel = 0.5f;  // 0..1 (nafas chuqurligi)
 
+    // Ifoda tsikllari holati.
+    FString CurrentExpr = TEXT("neutral_warm");
+    FString PreviousExpr = TEXT("neutral_warm");
+    float ExprBlend = 1.f;     // 0..1 (prev -> current)
+    float ExprTimer = 4.f;     // keyingi ifodagacha
+    int32 ExprCycleCount = 0;
+
+    // Imo-ishora holati.
+    bool bGestureActive = false;
+    float GesturePhase = 0.f;      // 0..1 (kirish->ushlash->chiqish)
+    float GestureTimer = 12.f;     // keyingi imo-ishoragacha
+    float GestureTargetYaw = 0.f;  // gradus
+    float GestureTargetPitch = 0.f;
+    int32 GestureCount = 0;
+
     // LiveLink.
     TSharedPtr<class FCompanionLiveLinkSource> LiveLinkSource;
     class ILiveLinkClient* LiveLinkClient = nullptr;
@@ -269,7 +342,11 @@ private:
     void ApplyAutoBlink(float DeltaTime);
     void ApplyIdleGaze(float DeltaTime);
     void ApplyMicroExpression();
+    void ApplyIdleExpression(float DeltaTime);
     void ApplyIdleHead(float DeltaTime);
+    float UpdateGesture(float DeltaTime); // qaytaradi: imo-ishora envelope 0..1
+
+    static const TMap<FString, TArray<TPair<FName, float>>>& IdleExprShapes();
 
     void ResetCurves();
     void AddShape(const TArray<TPair<FName, float>>* Shape, float Multiplier, float MouthScale);

@@ -455,6 +455,14 @@ void ACompanionDirector::ValidateIdleLife()
     IdleBreathMin = FMath::Min(IdleBreathMin, Breath);
     IdleBreathMax = FMath::Max(IdleBreathMax, Breath);
 
+    // v2: oyna o'rtasida bir marta reaksiya-imo-ishora chaqirib, uning bosh
+    // suyagiga ta'sirini alohida o'lchaymiz (idle sway'dan ajratib).
+    if (!bReactionTriggered && IdleProbeTicks == 25)
+    {
+        bReactionTriggered = true;
+        LipSync->TriggerReaction();
+    }
+
     // Face 'head' suyagining haqiqiy og'ishi (ABP HeadYaw/Pitch/Roll natijasi).
     // Dastlabki ~12 tick (yuklanish/poza settling) o'tkazib yuboriladi, so'ng
     // barqaror reference'dan sway radiusi o'lchanadi — bir martalik siljish
@@ -475,12 +483,20 @@ void ACompanionDirector::ValidateIdleLife()
                 const FVector Ref = IdleHeadBaseline.GetForwardVector();
                 const float AngleDeg = FMath::RadiansToDegrees(
                     FMath::Acos(FMath::Clamp(FVector::DotProduct(Fwd, Ref), -1.f, 1.f)));
-                IdleHeadBoneMax = FMath::Max(IdleHeadBoneMax, AngleDeg);
+                // Imo-ishora paytidagi katta harakatni idle sway'dan ajratamiz.
+                if (LipSync->IsGestureActive())
+                {
+                    GestureHeadBoneMax = FMath::Max(GestureHeadBoneMax, AngleDeg);
+                }
+                else
+                {
+                    IdleHeadBoneMax = FMath::Max(IdleHeadBoneMax, AngleDeg);
+                }
             }
         }
     }
 
-    if (IdleProbeTicks < 55) // ~3s settling + ~8s o'lchov
+    if (IdleProbeTicks < 90) // ~3s settling + ~15s o'lchov (ifoda tsikli+imo-ishora sig'sin)
     {
         return;
     }
@@ -488,9 +504,11 @@ void ACompanionDirector::ValidateIdleLife()
 
     UE_LOG(LogTemp, Log,
         TEXT("CompanionDirector: Idle tiriklik OK (nigoh max=%.2f, saccades=%d, "
-             "bosh gradus=%.2f, bosh suyagi og'ishi=%.2f deg, nafas=%.2f..%.2f)"),
+             "bosh gradus=%.2f, bosh suyagi og'ishi=%.2f deg, nafas=%.2f..%.2f, "
+             "ifoda tsikllari=%d, imo-ishora=%d(%.1f deg))"),
         IdleGazeMax, LipSync->GetSaccadeCount(), IdleHeadSubjMax, IdleHeadBoneMax,
-        IdleBreathMin, IdleBreathMax);
+        IdleBreathMin, IdleBreathMax,
+        LipSync->GetExpressionCycleCount(), LipSync->GetGestureCount(), GestureHeadBoneMax);
 
     if (IdleHeadSubjMax > 0.5f && IdleHeadBoneMax < 0.2f)
     {
@@ -515,6 +533,12 @@ void ACompanionDirector::HandleState(const FString& State)
     if (LipSync)
     {
         LipSync->SetCompanionState(State);
+        // Foydalanuvchi jalb bo'lgan lahzada "e'tibor" imo-ishorasi (Unclaw:
+        // xabar kelganda bosh burilishi bilan jonlanadi).
+        if (State == TEXT("listening") || State == TEXT("thinking"))
+        {
+            LipSync->TriggerReaction();
+        }
         UE_LOG(LogTemp, Log, TEXT("CompanionDirector: holat -> %s (nigoh+bosh+pirpirash moslashadi)"),
             *State);
     }

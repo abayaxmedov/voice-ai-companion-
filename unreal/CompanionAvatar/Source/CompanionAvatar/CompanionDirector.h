@@ -64,6 +64,8 @@ private:
     float IdleHeadBoneMax = 0.f;   // Face 'head' suyagi haqiqiy og'ishi (ABP natijasi)
     float IdleBreathMin = 1.f;     // nafas siklining eng past darajasi
     float IdleBreathMax = 0.f;     // nafas siklining eng yuqori darajasi
+    float GestureHeadBoneMax = 0.f; // imo-ishora paytidagi bosh og'ishi (v2)
+    bool bReactionTriggered = false;
     bool bIdleHeadBaselineSet = false;
     FQuat IdleHeadBaseline = FQuat::Identity;
 

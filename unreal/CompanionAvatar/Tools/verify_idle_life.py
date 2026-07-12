@@ -31,11 +31,14 @@ GAZE_MIN = 0.05
 SACCADES_MIN = 2
 HEAD_BONE_MIN = 0.15  # deg
 BREATH_RANGE_MIN = 0.5  # nafas siklining kamida yarmi kechishi kerak
+EXPR_CYCLES_MIN = 1     # kamida bitta ifoda almashuvi
+GESTURE_BONE_MIN = 3.0  # imo-ishora bosh suyagini sezilarli burishi kerak (deg)
 
 PATTERN = re.compile(
     r"Idle tiriklik OK \(nigoh max=([\d.]+), saccades=(\d+), "
     r"bosh gradus=([\d.]+), bosh suyagi og'ishi=([\d.]+) deg, "
-    r"nafas=([\d.]+)\.\.([\d.]+)\)"
+    r"nafas=([\d.]+)\.\.([\d.]+), "
+    r"ifoda tsikllari=(\d+), imo-ishora=(\d+)\(([\d.]+) deg\)\)"
 )
 
 
@@ -85,10 +88,14 @@ def main() -> int:
         float(match.group(3)), float(match.group(4)),
         float(match.group(5)), float(match.group(6)),
     )
+    expr_cycles, gesture_n, gesture_bone = (
+        int(match.group(7)), int(match.group(8)), float(match.group(9)),
+    )
     breath_range = breath_hi - breath_lo
     print(f"O'lchandi: nigoh={gaze:.2f} saccades={saccades} "
           f"bosh_gradus={head_deg:.2f} bosh_suyagi={head_bone:.2f}deg "
-          f"nafas={breath_lo:.2f}..{breath_hi:.2f}")
+          f"nafas={breath_lo:.2f}..{breath_hi:.2f} "
+          f"ifoda_tsikllari={expr_cycles} imo-ishora={gesture_n}({gesture_bone:.1f}deg)")
 
     ok = True
     if gaze < GAZE_MIN:
@@ -101,6 +108,12 @@ def main() -> int:
     if breath_range < BREATH_RANGE_MIN:
         print(f"  FAIL nafas sikli {breath_range:.2f} < {BREATH_RANGE_MIN} "
               f"(nafas ritmi kechmayapti)"); ok = False
+    if expr_cycles < EXPR_CYCLES_MIN:
+        print(f"  FAIL ifoda tsikllari {expr_cycles} < {EXPR_CYCLES_MIN} "
+              f"(yuz statik qolyapti)"); ok = False
+    if gesture_bone < GESTURE_BONE_MIN:
+        print(f"  FAIL imo-ishora {gesture_bone:.1f} < {GESTURE_BONE_MIN} deg "
+              f"(katta bosh burilishi bosh suyagiga yetmayapti)"); ok = False
 
     print("NATIJA: PASS ✅ — personaj idle'da tirik" if ok else "NATIJA: FAIL ❌")
     return 0 if ok else 1
