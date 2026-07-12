@@ -70,10 +70,42 @@ Runtime'da `CompanionDirector` avtomatik logga yozadi:
 og'ishi=.. deg, nafas=..)`. Agar `bosh gradusi bor-u suyak qimirlamasa` —
 gate/subject uzilgan (ogohlantirish chiqadi).
 
-## Cheklovlar
+## Ekspressiv idle v2 (2026-07-12, Unclaw tahlilidan keyin)
 
-- **Ko'krak/yelka nafasi yo'q.** Portret uchun bosh nafasi bilan taqlid
-  qilingan. To'liq ko'krak nafasi Body ABP (`ABP_Body_PostProcess`) ni
-  tahrirlashni talab qiladi — bu GUIsiz muhitda va joriy doirada bajarilmadi.
-- Harakat amplitudalari o'lchov bilan xavfsiz oraliqqa qo'yilgan; yakuniy
-  "his" vizual tekshiruvda (`run_full_stack.sh`) sozlanishi mumkin.
+Unclaw bilan eng katta farqni yopadi ("breathes between words"):
+
+| Xususiyat | Qayerda | Mexanizm |
+|---|---|---|
+| Ifoda tsikllari | `ApplyIdleExpression` | yuz 4 iliq holat orasida sekin blend (neutral_warm/soft_smile/open_smile/gentle_curious), har 5–13s, gapirganda pasayadi |
+| Katta imo-ishoralar | `UpdateGesture` + `ApplyIdleHead` | har 18–55s bosh ~15° chetga burilib qaytadi (envelope: kirish/ushlash/chiqish); GestureMaxDeg=20° cap |
+| Hodisa-reaksiyasi | `TriggerReaction` (Director'dan) | avatar.state listening/thinking'da "e'tibor" burilishi (xabar kelganda jonlanish) |
+
+Sozlanadigan UPROPERTY'lar (v2): `ExpressionHoldMin/MaxSec`, `ExpressionAmplitude`,
+`GestureIntervalMin/MaxSec`, `GestureYawDeg` (~15°), `GestureDurationSec`,
+`GestureMaxDeg`. Barchasi `bEnable*` bilan o'chirsa bo'ladi.
+
+Validator (`verify_idle_life.py`) endi ifoda tsikli sonini va imo-ishora
+ta'sirini ham tekshiradi. PASS misoli: `ifoda_tsikllari=3 imo-ishora=1(5.2deg)`.
+
+## Sahna v2 — Unclaw yoritish rigi (`Tools/build_stage.py`)
+
+Kinematik portret yoritish (headless idempotent):
+- **Key:** iliq oq, old-chapdan tepadan (yuzni ochadi).
+- **Rim1 (accent):** QIZIL, orqa-yuqori-o'ngdan, 90cd — soch silueti + kadr
+  yuqori-o'ng yog'dusi (Unclaw imzosi).
+- **Rim2:** qizil, orqa-chapdan, 40cd — yumshoq wrap.
+- **Fill:** sovuq ko'k, oldindan, 16cd.
+- **PostProcess:** vignette 0.5 + bloom 0.7 + iliq/qizg'ish ambient.
+- **Parametrlar:** `ACCENT_COLOR` (Unclaw'da 7 preset — bizda bitta qatorni
+  o'zgartiring), `LIGHT_RIG_YAW` (butun rigni aylantirish — Unclaw dial).
+
+## Cheklovlar / qo'lda qoladigan qadam
+
+- **Personaj dizayni (mesh/teri/soch/kiyim) — MetaHuman Creator (GUI):** sepkil,
+  messy bun soch, kiyim — bularni headless yaratib bo'lmaydi. Unclaw'ning
+  "realizm-through-imperfection" tamoyili bilan MetaHuman Creator'da alohida
+  sessiya kerak (`UNCLAW_REFERENCE.md` 3-bo'lim, `TODO.md` 11-band).
+- **Ko'krak/yelka nafasi yo'q.** Portret uchun bosh nafasi bilan taqlid;
+  to'liq ko'krak nafasi Body ABP tahririni talab qiladi (doiradan tashqari).
+- Harakat/yoritish amplitudalari o'lchab xavfsiz oraliqqa qo'yilgan; yakuniy
+  "his" vizual tekshiruvda (`scripts/dev/run_full_stack.sh`) sozlanadi.
