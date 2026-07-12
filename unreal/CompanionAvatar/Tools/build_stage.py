@@ -15,6 +15,7 @@ Har tekshiruv "BUILD_STAGE: <holat> <nima>" qatorini chiqaradi
 """
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import unreal
@@ -39,10 +40,27 @@ CHAR_FACE_YAW = -90.0
 DIRLIGHT_LUX = 180.0
 DIRLIGHT_PITCH = -35.0   # tepadan pastga
 DIRLIGHT_YAW_OFFSET = -20.0  # kamera yaw'iga nisbatan shakl beruvchi burilish
-SKYLIGHT_FILL = 1.5      # soyali tomon qop-qora bo'lmasligi uchun yumshoq to'ldirish
-RIM_LOC = unreal.Vector(-90.0, 35.0, 175.0)
-RIM_CANDELAS = 60.0
-RIM_COLOR = unreal.Color(r=255, g=59, b=64, a=255)  # ~ (1.0, 0.23, 0.25)
+KEY_COLOR = unreal.Color(r=255, g=234, b=208, a=255)  # iliq oq (Unclaw "warm white")
+SKYLIGHT_FILL = 1.2      # soyali tomon qop-qora bo'lmasligi uchun yumshoq to'ldirish
+
+# --- Unclaw-uslub ACCENT (rim) — foydalanuvchi sozlashi mumkin. ---
+# Unclaw'da 7 preset bor (warm white/orange/pink/blue/purple/green/custom).
+# Bizning imzo — QIZIL; boshqa his uchun shu bitta qatorni o'zgartiring.
+ACCENT_COLOR = unreal.Color(r=255, g=48, b=58, a=255)   # qizil
+# Butun yoritish rigini personaj atrofida aylantirish (Unclaw LIGHTING dial).
+# 0° = old-chapdan key, orqa-o'ngdan qizil rim (etalon ko'rinish).
+LIGHT_RIG_YAW = 0.0
+
+# Rim/accent nurlari (personajga nisbatan; LIGHT_RIG_YAW ular ustida aylanadi).
+RIM1_LOC = unreal.Vector(-95.0, -60.0, 195.0)  # orqa-yuqori-o'ng (kadr yuqori-o'ng yog'du)
+RIM1_CANDELAS = 90.0
+RIM2_LOC = unreal.Vector(-95.0, 55.0, 185.0)   # orqa-yuqori-chap (xiraroq wrap)
+RIM2_CANDELAS = 40.0
+
+# Sovuq to'ldirish (fill) — old-past-o'ngdan, juda yumshoq.
+FILL_LOC = unreal.Vector(120.0, -70.0, 90.0)
+FILL_COLOR = unreal.Color(r=120, g=155, b=255, a=255)
+FILL_CANDELAS = 16.0
 
 changed = False
 failed = False
@@ -73,6 +91,17 @@ def nearly(a: float, b: float, tol: float = 0.5) -> bool:
 
 def vec_nearly(a: unreal.Vector, b: unreal.Vector, tol: float = 1.0) -> bool:
     return nearly(a.x, b.x, tol) and nearly(a.y, b.y, tol) and nearly(a.z, b.z, tol)
+
+
+def rotate_xy(v: unreal.Vector, yaw_deg: float) -> unreal.Vector:
+    """Vektorni Z o'qi atrofida aylantirish (yoritish rigi dial'i uchun)."""
+    r = math.radians(yaw_deg)
+    c, s = math.cos(r), math.sin(r)
+    return unreal.Vector(v.x * c - v.y * s, v.x * s + v.y * c, v.z)
+
+
+def color_near(a, b, tol: int = 4) -> bool:
+    return abs(a.r - b.r) <= tol and abs(a.g - b.g) <= tol and abs(a.b - b.b) <= tol
 
 
 def ensure_level() -> None:
@@ -153,10 +182,11 @@ def light_component(actor: unreal.Actor):
 
 
 def ensure_directional() -> None:
-    # Nur kamera tomonidan (CAM_YAW), tepadan (DIRLIGHT_PITCH) tushsin —
-    # shunda kamera ko'radigan yuz tomoni yoritiladi.
+    # Key nur kamera tomonidan (CAM_YAW), tepadan (DIRLIGHT_PITCH), iliq oq.
+    # LIGHT_RIG_YAW butun rigni aylantiradi (Unclaw dial).
     key_rot = unreal.Rotator(
-        roll=0.0, pitch=DIRLIGHT_PITCH, yaw=CAM_YAW + DIRLIGHT_YAW_OFFSET
+        roll=0.0, pitch=DIRLIGHT_PITCH,
+        yaw=CAM_YAW + DIRLIGHT_YAW_OFFSET + LIGHT_RIG_YAW,
     )
     lights = find_by_class(unreal.DirectionalLight)
     if not lights:
@@ -172,7 +202,10 @@ def ensure_directional() -> None:
     if not nearly(comp.get_editor_property("intensity"), DIRLIGHT_LUX, 0.5):
         comp.set_editor_property("intensity", DIRLIGHT_LUX)
         mark_fixed(f"DirectionalLight {DIRLIGHT_LUX} lux qilindi")
-    report("OK", "DirectionalLight spetsifikatsiyada")
+    if not color_near(comp.get_editor_property("light_color"), KEY_COLOR):
+        comp.set_editor_property("light_color", KEY_COLOR)
+        mark_fixed("Key nur iliq oq qilindi")
+    report("OK", "DirectionalLight (key) spetsifikatsiyada")
 
 
 def ensure_skylight() -> None:
@@ -189,26 +222,76 @@ def ensure_skylight() -> None:
     report("OK", "SkyLight spetsifikatsiyada")
 
 
-def ensure_rim() -> None:
-    lights = find_by_class(unreal.PointLight)
-    if not lights:
-        light = spawn(unreal.PointLight, RIM_LOC)
-        mark_fixed("PointLight (qizil rim) yaratildi")
+def ensure_point_light(label: str, loc: unreal.Vector, candelas: float,
+                       color, radius: float = 650.0) -> None:
+    """Nomlangan PointLight (rim/fill) — idempotent, LIGHT_RIG_YAW bilan aylanadi."""
+    loc = rotate_xy(loc, LIGHT_RIG_YAW)
+    named = [a for a in find_by_class(unreal.PointLight) if a.get_actor_label() == label]
+    if named:
+        light = named[0]
+        ensure_transform(light, loc, None, label)
     else:
-        light = lights[0]
-        ensure_transform(light, RIM_LOC, None, "Rim PointLight")
+        # Eski nomsiz rim'ni qayta ishlatamiz (birinchi run), aks holda yangi.
+        spare = [a for a in find_by_class(unreal.PointLight)
+                 if not a.get_actor_label().startswith("Companion")]
+        if spare:
+            light = spare[0]
+            ensure_transform(light, loc, None, label)
+        else:
+            light = spawn(unreal.PointLight, loc)
+            mark_fixed(f"{label} yaratildi")
+        light.set_actor_label(label)
     comp = light_component(light)
     if comp.get_editor_property("intensity_units") != unreal.LightUnits.CANDELAS:
         comp.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
-        mark_fixed("Rim intensity birligi candela qilindi")
-    if not nearly(comp.get_editor_property("intensity"), RIM_CANDELAS, 0.5):
-        comp.set_editor_property("intensity", RIM_CANDELAS)
-        mark_fixed(f"Rim {RIM_CANDELAS} cd qilindi")
-    cur = comp.get_editor_property("light_color")
-    if (abs(cur.r - RIM_COLOR.r) > 3) or (abs(cur.g - RIM_COLOR.g) > 3) or (abs(cur.b - RIM_COLOR.b) > 3):
-        comp.set_editor_property("light_color", RIM_COLOR)
-        mark_fixed("Rim rangi qizilga keltirildi")
-    report("OK", "Rim PointLight spetsifikatsiyada")
+        mark_fixed(f"{label} birligi candela")
+    if not nearly(comp.get_editor_property("intensity"), candelas, 0.5):
+        comp.set_editor_property("intensity", candelas)
+        mark_fixed(f"{label} {candelas} cd")
+    if not color_near(comp.get_editor_property("light_color"), color):
+        comp.set_editor_property("light_color", color)
+        mark_fixed(f"{label} rangi o'rnatildi")
+    if not nearly(comp.get_editor_property("attenuation_radius"), radius, 5.0):
+        comp.set_editor_property("attenuation_radius", radius)
+        mark_fixed(f"{label} radius {radius}")
+    report("OK", f"{label} spetsifikatsiyada")
+
+
+def ensure_rims_and_fill() -> None:
+    # Unclaw-uslub: kuchli qizil rim orqa-yuqori-o'ngdan (kadr yuqori-o'ng
+    # yog'du), xiraroq ikkinchi rim orqa-chapdan (wrap), sovuq fill oldindan.
+    ensure_point_light("CompanionRim1", RIM1_LOC, RIM1_CANDELAS, ACCENT_COLOR, 700.0)
+    ensure_point_light("CompanionRim2", RIM2_LOC, RIM2_CANDELAS, ACCENT_COLOR, 650.0)
+    ensure_point_light("CompanionFill", FILL_LOC, FILL_CANDELAS, FILL_COLOR, 800.0)
+
+
+def ensure_post_process() -> None:
+    # Kinematik mood: vignette (e'tiborni yuzga), bloom (rim fon yuqorisida
+    # yog'du beradi), yengil iliq/qizg'ish ambient (Unclaw dark-red feel).
+    existing = find_by_class(unreal.PostProcessVolume)
+    if existing:
+        ppv = existing[0]
+        created = False
+    else:
+        ppv = spawn(unreal.PostProcessVolume)
+        ppv.set_actor_label("CompanionPostProcess")
+        created = True
+        mark_fixed("PostProcessVolume yaratildi")
+    ppv.set_editor_property("unbound", True)  # butun sahnaga ta'sir qiladi
+    s = ppv.get_editor_property("settings")
+    already = (not created
+               and s.get_editor_property("override_vignette_intensity")
+               and nearly(s.get_editor_property("vignette_intensity"), 0.5, 0.02))
+    if not already:
+        s.set_editor_property("override_vignette_intensity", True)
+        s.set_editor_property("vignette_intensity", 0.5)
+        s.set_editor_property("override_bloom_intensity", True)
+        s.set_editor_property("bloom_intensity", 0.7)
+        s.set_editor_property("override_color_gain", True)
+        s.set_editor_property("color_gain", unreal.Vector4(1.0, 0.93, 0.93, 1.0))
+        ppv.set_editor_property("settings", s)
+        mark_fixed("PostProcess: vignette 0.5 + bloom 0.7 + iliq ambient")
+    report("OK", "PostProcessVolume (mood) spetsifikatsiyada")
 
 
 def main() -> None:
@@ -217,7 +300,8 @@ def main() -> None:
     ensure_camera()
     ensure_directional()
     ensure_skylight()
-    ensure_rim()
+    ensure_rims_and_fill()
+    ensure_post_process()
 
     if failed:
         report("ERROR", "FAILED — yuqoridagi xatolarga qarang")
