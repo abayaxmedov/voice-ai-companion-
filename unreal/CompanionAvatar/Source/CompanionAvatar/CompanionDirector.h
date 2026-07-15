@@ -44,9 +44,28 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion")
     FString MetaHumanActorNameContains = TEXT("MetaHuman");
 
+    // --- Kamera dolly: kinematik "tirik" kamera (Unclaw uslubi). ---
+
+    /** Kamera dolly yoqiq — idle drift + gapirganda yengil push-in. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Camera")
+    bool bEnableCameraDolly = true;
+
+    /** Gapirganda kamera boshga necha sm yaqinlashadi (push-in). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Camera")
+    float CameraPushInCm = 7.0f;
+
+    /** Gapirganda focal length necha mm oshadi (yumshoq zoom). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Camera")
+    float CameraPushInFocal = 3.0f;
+
+    /** Idle "tirik kamera" drift amplitudasi (sm). */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Companion Camera")
+    float CameraDriftCm = 1.5f;
+
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void Tick(float DeltaTime) override;
 
 private:
     FTimerHandle ViewTargetTimerHandle;
@@ -57,6 +76,14 @@ private:
     TWeakObjectPtr<AActor> MetaHumanActor;
     TWeakObjectPtr<USkeletalMeshComponent> FaceMesh;
 
+    // Kamera dolly holati.
+    TWeakObjectPtr<class ACineCameraActor> CineCam;
+    FVector CamBaseLoc = FVector::ZeroVector;
+    float CamBaseFocal = 35.f;
+    float CamPushIn = 0.f;      // 0 idle .. 1 gapirmoqda (yumshatilgan)
+    double CamLifeClock = 0.0;
+    bool bCamBaseSet = false;
+
     // Idle tiriklik validatsiyasi (nigoh + bosh suyagi rotatsiyasi o'lchanadi).
     int32 IdleProbeTicks = 0;
     float IdleGazeMax = 0.f;
@@ -66,6 +93,9 @@ private:
     float IdleBreathMax = 0.f;     // nafas siklining eng yuqori darajasi
     float GestureHeadBoneMax = 0.f; // imo-ishora paytidagi bosh og'ishi (v2)
     bool bReactionTriggered = false;
+    FVector CamProbeBase = FVector::ZeroVector; // kamera dolly o'lchovi
+    bool bCamProbeSet = false;
+    float CamDriftMax = 0.f;
     bool bIdleHeadBaselineSet = false;
     FQuat IdleHeadBaseline = FQuat::Identity;
 

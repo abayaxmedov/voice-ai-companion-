@@ -2,6 +2,7 @@
 
 #include "Animation/AnimInstance.h"
 #include "CineCameraActor.h"
+#include "CineCameraComponent.h"
 #include "CompanionBridgePoller.h"
 #include "CompanionLipSync.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -16,7 +17,7 @@
 
 ACompanionDirector::ACompanionDirector()
 {
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true; // kamera dolly uchun
 
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     BridgePoller = CreateDefaultSubobject<UCompanionBridgePoller>(TEXT("BridgePoller"));
@@ -62,6 +63,40 @@ void ACompanionDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
     GetWorldTimerManager().ClearTimer(FaceValidateTimerHandle);
     GetWorldTimerManager().ClearTimer(IdleLifeTimerHandle);
     Super::EndPlay(EndPlayReason);
+}
+
+void ACompanionDirector::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    ACineCameraActor* Cam = CineCam.Get();
+    if (!bEnableCameraDolly || !bCamBaseSet || !Cam)
+    {
+        return;
+    }
+
+    CamLifeClock += DeltaTime;
+    const float T = static_cast<float>(CamLifeClock);
+
+    // Push-in: gapirganda 1 ga, idle'da 0 ga yumshoq o'tadi (~0.8s).
+    const float SpeakTarget = (LipSync && LipSync->IsSpeaking()) ? 1.f : 0.f;
+    CamPushIn += (SpeakTarget - CamPushIn) * FMath::Min(1.f, DeltaTime * 1.3f);
+
+    // Idle "tirik kamera" drift (mayda Perlin, sm).
+    const FVector Drift(
+        CameraDriftCm * FMath::PerlinNoise1D(T * 0.11f),
+        CameraDriftCm * FMath::PerlinNoise1D(T * 0.13f + 20.f),
+        CameraDriftCm * 0.6f * FMath::PerlinNoise1D(T * 0.09f + 40.f));
+
+    // Push-in: kamera qaragan yo'nalish bo'ylab boshga yaqinlashadi.
+    const FVector PushOffset = Cam->GetActorForwardVector() * (CameraPushInCm * CamPushIn);
+    Cam->SetActorLocation(CamBaseLoc + Drift + PushOffset);
+
+    if (UCineCameraComponent* C = Cam->GetCineCameraComponent())
+    {
+        const float TargetFocal = CamBaseFocal + CameraPushInFocal * CamPushIn;
+        C->SetCurrentFocalLength(FMath::FInterpTo(C->CurrentFocalLength, TargetFocal, DeltaTime, 3.f));
+    }
 }
 
 void ACompanionDirector::AttachLipSyncToMetaHuman()
@@ -208,7 +243,19 @@ void ACompanionDirector::TrySetViewTarget()
         if (AActor* Camera = UGameplayStatics::GetActorOfClass(World, ACineCameraActor::StaticClass()))
         {
             Controller->SetViewTargetWithBlend(Camera, 0.0f);
-            UE_LOG(LogTemp, Log, TEXT("CompanionDirector: view target -> %s"), *Camera->GetName());
+            // Kamera dolly uchun bazani saqlab qo'yamiz.
+            CineCam = Cast<ACineCameraActor>(Camera);
+            CamBaseLoc = Camera->GetActorLocation();
+            if (CineCam.IsValid())
+            {
+                if (UCineCameraComponent* C = CineCam->GetCineCameraComponent())
+                {
+                    CamBaseFocal = C->CurrentFocalLength;
+                }
+            }
+            bCamBaseSet = true;
+            UE_LOG(LogTemp, Log, TEXT("CompanionDirector: view target -> %s (dolly bazasi saqlandi)"),
+                *Camera->GetName());
             GetWorldTimerManager().ClearTimer(ViewTargetTimerHandle);
             return;
         }
@@ -455,6 +502,14 @@ void ACompanionDirector::ValidateIdleLife()
     IdleBreathMin = FMath::Min(IdleBreathMin, Breath);
     IdleBreathMax = FMath::Max(IdleBreathMax, Breath);
 
+    // Kamera dolly drift o'lchovi (idle "tirik kamera").
+    if (ACineCameraActor* Cam = CineCam.Get())
+    {
+        const FVector Loc = Cam->GetActorLocation();
+        if (!bCamProbeSet) { CamProbeBase = Loc; bCamProbeSet = true; }
+        else { CamDriftMax = FMath::Max(CamDriftMax, static_cast<float>((Loc - CamProbeBase).Size())); }
+    }
+
     // v2: oyna o'rtasida bir marta reaksiya-imo-ishora chaqirib, uning bosh
     // suyagiga ta'sirini alohida o'lchaymiz (idle sway'dan ajratib).
     if (!bReactionTriggered && IdleProbeTicks == 25)
@@ -509,6 +564,8 @@ void ACompanionDirector::ValidateIdleLife()
         IdleGazeMax, LipSync->GetSaccadeCount(), IdleHeadSubjMax, IdleHeadBoneMax,
         IdleBreathMin, IdleBreathMax,
         LipSync->GetExpressionCycleCount(), LipSync->GetGestureCount(), GestureHeadBoneMax);
+
+    UE_LOG(LogTemp, Log, TEXT("CompanionDirector: Kamera dolly (idle drift=%.2f sm)"), CamDriftMax);
 
     if (IdleHeadSubjMax > 0.5f && IdleHeadBoneMax < 0.2f)
     {
